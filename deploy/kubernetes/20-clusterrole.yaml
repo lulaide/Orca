@@ -1,0 +1,61 @@
+# MVP 阶段只给全集群只读权限。
+#
+# 特别说明：
+#   - 故意不包含 secrets，避免 LLM 把密钥回显到对话/日志
+#   - 不包含任何 create/update/patch/delete 动词
+#   - pods/log 作为子资源必须单独列出，否则读不到 Pod 日志
+#
+# Phase 2 加写操作（rollout_restart / scale / delete_pod）时，
+# 另建一个 orca-operator ClusterRole 单独绑定，通过应用层审批流控制。
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: orca-readonly
+  labels:
+    app.kubernetes.io/name: orca
+rules:
+  # 核心资源
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - events
+      - nodes
+      - nodes/status
+      - services
+      - endpoints
+      - configmaps
+      - namespaces
+      - persistentvolumeclaims
+      - persistentvolumes
+    verbs: ["get", "list", "watch"]
+
+  # 工作负载
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - statefulsets
+      - daemonsets
+      - replicasets
+    verbs: ["get", "list", "watch"]
+
+  # 网络
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+      - networkpolicies
+    verbs: ["get", "list", "watch"]
+
+  # 批处理
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - cronjobs
+    verbs: ["get", "list", "watch"]
+
+  # 指标（如果集群装了 metrics-server，用来做资源使用率检查）
+  - apiGroups: ["metrics.k8s.io"]
+    resources:
+      - pods
+      - nodes
+    verbs: ["get", "list"]

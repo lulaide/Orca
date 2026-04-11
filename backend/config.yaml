@@ -1,0 +1,26 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+database:
+  host: "localhost"
+  port: 5432
+  name: "orca"
+  user: "orca"
+  password: "orca"
+  sslmode: "disable"
+
+llm:
+  # 启动时的初始 provider（用户可在后台运行时切换）。
+  provider: "anthropic"    # "openai" | "anthropic"
+  endpoint: ""
+  api_key: ""
+  model: "claude-opus-4-6"
+  max_iterations: 20
+
+kubernetes:
+  # 启动时的连接方式（互斥，不做 fallback）：
+  #   kubeconfig 非空 → 走 kubeconfig 模式，失败在后台显示错误
+  #   kubeconfig 为空 → 走 in-cluster 模式，失败只显示"未配置"（不显示错误）
+  # 无论哪种，用户都可以在后台手动切换模式/上传新 kubeconfig。
+  kubeconfig: ""

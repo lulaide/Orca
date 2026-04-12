@@ -84,12 +84,12 @@ func (m *Manager) Current() config.LLMConfig {
 }
 
 // MaxIterations 返回当前配置的 Agentic Loop 最大迭代轮数。
-// 未配置或配置 <= 0 时返回默认值 10。
+// 未配置或配置 <= 0 时返回默认值 20。
 func (m *Manager) MaxIterations() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.current.MaxIterations <= 0 {
-		return 10
+		return 20
 	}
 	return m.current.MaxIterations
 }

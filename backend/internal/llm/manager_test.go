@@ -14,10 +14,7 @@ import (
 // 运行方式: cd backend && go test -v -run TestChatModel ./internal/llm
 // 如果 config.yaml 里 llm.api_key 为空,测试会跳过。
 func TestChatModel(t *testing.T) {
-	cfg, err := config.Load("../../config.yaml")
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
+	cfg := config.Load("../../config.yaml")
 	if cfg.LLM.APIKey == "" {
 		t.Skip("llm.api_key not set in config.yaml, skipping")
 	}

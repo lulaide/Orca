@@ -58,8 +58,8 @@ func TestAgenticLoopWithKubernetes(t *testing.T) {
 	result, err := engine.Run(ctx, RunInput{
 		SystemPrompt: "You are an SRE assistant operating on a Kubernetes cluster. " +
 			"Use the available tools to answer questions. Be concise.",
-		UserMessage: "List all pods in the kube-system namespace and tell me how many there are, " +
-			"and whether any are not Running.",
+		UserMessage: "Check the cluster health: list nodes to see their status, " +
+			"then check recent events in kube-system for any warnings.",
 	})
 	if err != nil {
 		t.Fatalf("engine run: %v", err)

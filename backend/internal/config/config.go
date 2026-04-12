@@ -41,21 +41,39 @@ type KubernetesConfig struct {
 	Kubeconfig string `yaml:"kubeconfig"`
 }
 
-// Load 从 YAML 文件加载配置，然后用环境变量覆盖。
-func Load(path string) (*Config, error) {
-	cfg := &Config{}
+// Load 加载配置。优先级: 默认值 < config.yaml < 环境变量。
+// config.yaml 不存在时不报错,直接用默认值 + 环境变量。
+func Load(path string) *Config {
+	cfg := defaultConfig()
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read config file: %w", err)
-	}
-	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("parse config file: %w", err)
+	if data, err := os.ReadFile(path); err == nil {
+		_ = yaml.Unmarshal(data, cfg)
 	}
 
 	applyEnvOverrides(cfg)
+	return cfg
+}
 
-	return cfg, nil
+// defaultConfig 返回合理的默认配置。
+// 没有 config.yaml 时靠这些默认值 + 环境变量就能启动。
+func defaultConfig() *Config {
+	return &Config{
+		Server: ServerConfig{
+			Host: "0.0.0.0",
+			Port: 8080,
+		},
+		Database: DatabaseConfig{
+			Host:    "localhost",
+			Port:    5432,
+			Name:    "orca",
+			User:    "orca",
+			Password: "orca",
+			SSLMode: "disable",
+		},
+		LLM: LLMConfig{
+			MaxIterations: 10,
+		},
+	}
 }
 
 // DSN 返回 PostgreSQL 连接字符串。

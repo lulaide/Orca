@@ -41,24 +41,43 @@ Event
 ├── related_services 关联服务（用于匹配模块负责人）
 └── created_at
 
-Investigation
-├── id
-├── event_id        关联事件
-├── user_id         当前跟进人
-├── status          状态（"open" | "investigating" | "resolved" | "stale"）
-├── messages[]      完整对话记录（用户 + Agent）
-├── actions[]       Agent 执行过的操作（审计日志）
-├── summary         LLM 生成的调查摘要
+Conversation（对话容器）
+├── id              uuid
+├── title           对话标题（自动生成）
 ├── created_at
-└── resolved_at
+└── updated_at
 
-Message
+Message（对话消息）
 ├── id
-├── investigation_id
-├── user_id         发送者（用户 ID 或 "agent"）
-├── role            "user" | "assistant" | "system"
+├── conversation_id 所属对话
+├── role            "user" | "assistant"
 ├── content
 └── created_at
+
+Investigation（调查——独立资源,不绑定到特定对话）
+├── id
+├── title           问题标题
+├── description     问题描述
+├── status          状态（"open" | "investigating" | "resolved" | "stale"）
+├── severity        严重程度（"critical" | "warning" | "info"）
+├── source          来源（"uptime-kuma" | "patrol" | "ask" | "manual"）
+├── event_id        关联事件（可选）
+├── related_services 关联服务
+├── root_cause      根因分析（resolved 时填）
+├── solution        解决方案（resolved 时填）
+├── created_at
+├── updated_at
+└── resolved_at
+
+Investigation Entry（调查时间线日志）
+├── id
+├── investigation_id
+├── type            "discovery" | "action" | "resolution" | "note"
+├── content         描述
+├── author          "ai" | user_id
+└── created_at
+
+关系：Conversation * ──── * Investigation（多对多）
 ```
 
 #### 事件生命周期
@@ -72,29 +91,37 @@ Trigger Plugin 解析 → 生成 Event
     ▼
 Event Router 接收
     ├── 匹配关联服务 → 确定模块负责人
-    ├── 创建 Investigation（status = open）
+    ├── 创建 Investigation（独立资源,status = open）
+    ├── 自动开启 Conversation 进行 AI 排查
     ├── 通知：IM 群发 + @ 负责人
     └── 通知：Web 前端实时推送
     │
     ▼
-Agent 自动开始排查（status = investigating）
+Agent 自动排查（Investigation status → investigating）
     ├── LLM Engine 启动 Agentic Loop
-    ├── 调用工具收集信息
+    ├── 调用工具收集信息,每步写入 Investigation Entry 时间线
     ├── 检索知识库 + 记忆
     ├── 生成根因分析 + 修复建议
     └── 发送到 IM 群 + Web 前端
     │
     ▼
 用户介入（可选）
-    ├── 回复消息追问 → 继续对话
+    ├── 在已有对话中追问 → 继续对话
+    ├── 开新对话引用同一个 Investigation → 多人协作
     ├── 确认执行修复 → Agent 执行操作
     └── 手动标记已解决
     │
     ▼
 Investigation resolved
-    ├── LLM 总结本次事件：症状 → 根因 → 解法
+    ├── LLM 填充 root_cause + solution
     ├── 写入记忆（团队共享）
-    └── 记录到巡检日志
+    └── 时间线记录 resolution entry
+
+用户 ASK 流程（另一条路径）：
+    用户发起对话 → AI 排查 → 发现问题
+    → AI 调工具创建 Investigation
+    → 对话自动关联该 Investigation
+    → 后续可在任意对话中引用
 ```
 
 ---
@@ -293,9 +320,9 @@ Dashboard / Events / Investigation / Chat / Knowledge / Patrol / Settings
 
 ## 数据存储
 
-PostgreSQL + pgvector 扩展。
+PostgreSQL（Phase 2 起加 pgvector 扩展）。
 
-核心表：users / events / investigations / messages / actions / services / knowledge / patrol_logs / patrol_configs / plugin_configs / mcp_connections。
+核心表：users / conversations / messages / investigations / investigation_entries / conversation_investigations / events / actions / services / settings / patrol_configs / patrol_logs / plugin_configs。Phase 2 新增：knowledge / mcp_connections。
 
 ---
 

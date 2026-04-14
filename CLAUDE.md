@@ -68,11 +68,21 @@ Agent Core
 
 每个异常信号或用户请求的抽象。字段：id, source, severity(critical/warning/info), title, payload(JSON), related_services, created_at。
 
-### Investigation（调查会话）
+### Conversation（对话）
 
-Event 触发后创建。是一个有状态的对话——Agent 和用户围绕这个事件的所有交互都在这里面。字段：id, event_id, user_id, status(open/investigating/resolved/stale), messages[], actions[], summary, created_at, resolved_at。
+所有聊天的通用容器。用户通过 ASK 发起对话,对话中可以引用/创建 Investigation。字段：id(uuid), title, created_at, updated_at。对话消息存在 messages 表（conversation_id, role, content）。
 
-resolved 时 LLM 自动总结症状→根因→解法，存入记忆供后续检索。
+### Investigation（调查）
+
+一个独立的资源,代表**一个待解决的问题**,类似工单。不绑定到某个特定对话——多个对话可以引用同一个 Investigation,一个对话也可以涉及多个 Investigation（多对多关系,通过 conversation_investigations 表关联）。
+
+创建方式：事件触发自动创建 / AI 在 ASK 对话中发现问题后调工具创建 / 用户手动创建。
+
+字段：id, title, description, status(open/investigating/resolved/stale), severity(critical/warning/info), source, event_id, related_services(JSONB), root_cause, solution, created_at, updated_at, resolved_at。
+
+Investigation 有时间线日志（investigation_entries 表），记录每一步发现、操作和结论,类似 Statuspage 的事件更新流。
+
+resolved 时 LLM 自动填充 root_cause + solution,存入记忆供后续检索。
 
 ### Trigger Plugin（触发插件）
 
@@ -141,7 +151,7 @@ WebSocket 实时推送事件和 Investigation 更新，Agent 推理过程流式�
 
 下面是完整目标 schema。按阶段划分：
 
-- **Phase 1 (MVP)**：users / events / investigations / messages / actions / services / patrol_configs / patrol_logs / plugin_configs
+- **Phase 1 (MVP)**：users / conversations / messages / investigations / investigation_entries / conversation_investigations / events / actions / services / patrol_configs / patrol_logs / plugin_configs / settings
 - **Phase 2**：knowledge（带 embedding）+ `CREATE EXTENSION vector` + ivfflat 索引，mcp_connections
 
 MVP 阶段 **不创建** knowledge 表、**不安装** pgvector 扩展。待 Phase 2 做记忆/RAG 时再 `ALTER` 引入，避免过早引入依赖。
@@ -171,37 +181,75 @@ CREATE TABLE events (
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 调查会话
-CREATE TABLE investigations (
-    id              TEXT PRIMARY KEY,
-    event_id        TEXT REFERENCES events(id),
-    user_id         TEXT REFERENCES users(id),
-    status          TEXT DEFAULT 'open',
-    summary         TEXT,
+-- 对话容器（ASK 和 Investigation 共用）
+CREATE TABLE conversations (
+    id              TEXT PRIMARY KEY,       -- uuid
+    title           TEXT,
     created_at      TIMESTAMPTZ DEFAULT NOW(),
-    resolved_at     TIMESTAMPTZ
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 对话消息
 CREATE TABLE messages (
     id                  TEXT PRIMARY KEY,
-    investigation_id    TEXT REFERENCES investigations(id),
-    user_id             TEXT,
-    role                TEXT NOT NULL,       -- 'user' | 'assistant' | 'system'
+    conversation_id     TEXT REFERENCES conversations(id),
+    role                TEXT NOT NULL,       -- 'user' | 'assistant'
     content             TEXT NOT NULL,
     created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 调查（独立资源,不绑定到特定对话）
+CREATE TABLE investigations (
+    id              TEXT PRIMARY KEY,
+    title           TEXT NOT NULL,
+    description     TEXT,
+    status          TEXT DEFAULT 'open',        -- 'open' | 'investigating' | 'resolved' | 'stale'
+    severity        TEXT DEFAULT 'info',        -- 'critical' | 'warning' | 'info'
+    source          TEXT,                       -- 'uptime-kuma' | 'patrol' | 'ask' | 'manual'
+    event_id        TEXT,
+    related_services JSONB,
+    root_cause      TEXT,                       -- resolved 时填
+    solution        TEXT,                       -- resolved 时填
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    resolved_at     TIMESTAMPTZ
+);
+
+-- 调查时间线日志
+CREATE TABLE investigation_entries (
+    id                  TEXT PRIMARY KEY,
+    investigation_id    TEXT REFERENCES investigations(id),
+    type                TEXT NOT NULL,       -- 'discovery' | 'action' | 'resolution' | 'note'
+    content             TEXT NOT NULL,
+    author              TEXT,               -- 'ai' | user_id
+    created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 对话与调查的多对多关联
+CREATE TABLE conversation_investigations (
+    conversation_id     TEXT REFERENCES conversations(id),
+    investigation_id    TEXT REFERENCES investigations(id),
+    PRIMARY KEY (conversation_id, investigation_id)
 );
 
 -- Agent 操作审计
 CREATE TABLE actions (
     id                  TEXT PRIMARY KEY,
-    investigation_id    TEXT REFERENCES investigations(id),
+    conversation_id     TEXT REFERENCES conversations(id),
     user_id             TEXT,
     tool_name           TEXT NOT NULL,
     tool_input          JSONB,
     tool_output         TEXT,
     approved            BOOLEAN,
     created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 运行时设置（LLM / K8s 等运行时配置持久化）
+CREATE TABLE settings (
+    key             TEXT PRIMARY KEY,
+    value           JSONB NOT NULL,
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_by      TEXT
 );
 
 -- 服务清单（自动采集 + 人工维护）

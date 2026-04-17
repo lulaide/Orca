@@ -15,8 +15,11 @@ import {
 } from '../api'
 import { navigate } from '../navigate'
 import { ConfirmDialog } from './ConfirmDialog'
+import { InvestigationChatDrawer } from './InvestigationChatDrawer'
 import { SeverityDot, StatusBadge } from './investigationUI'
 import { formatRelativeTime } from '../timeFormat'
+
+const DRAWER_LS_KEY = 'orca.inv.drawer.open'
 
 interface Props {
   id: string
@@ -39,6 +42,24 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
   const [showAddEntry, setShowAddEntry] = useState(false)
   const [entryType, setEntryType] = useState<InvestigationEntryType>('note')
   const [entryContent, setEntryContent] = useState('')
+  const [drawerOpen, setDrawerOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(DRAWER_LS_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const toggleDrawer = () => {
+    setDrawerOpen((o) => {
+      const next = !o
+      try {
+        localStorage.setItem(DRAWER_LS_KEY, next ? '1' : '0')
+      } catch {
+        // ignore
+      }
+      return next
+    })
+  }
 
   const reload = async () => {
     try {
@@ -221,13 +242,31 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
           <span>/</span>
           <span className="text-[var(--color-text-muted)] truncate">{id.slice(0, 6)}</span>
         </div>
-        <span className="text-[var(--color-text-dim)] tabular-nums">
-          {entries.length} entries
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-[var(--color-text-dim)] tabular-nums">
+            {entries.length} entries
+          </span>
+          <button
+            type="button"
+            onClick={toggleDrawer}
+            className={`flex items-center gap-1.5 px-2 h-7 rounded border
+              font-mono text-[11px] uppercase tracking-[0.15em] transition-colors
+              ${
+                drawerOpen
+                  ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent-soft)]'
+                  : 'border-[var(--color-border-strong)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]'
+              }`}
+            aria-label={drawerOpen ? '关闭抽屉' : '打开抽屉'}
+          >
+            <span>✦</span>
+            <span>{drawerOpen ? 'close' : 'ask'}</span>
+          </button>
+        </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto orca-grid">
-        <div className="max-w-3xl mx-auto px-6 py-6">
+      <div className="flex flex-1 min-h-0">
+        <div className="flex-1 overflow-y-auto orca-grid min-w-0">
+          <div className="max-w-3xl mx-auto px-6 py-6">
           {archived && (
             <div className="mb-5 px-4 py-2.5 rounded border border-[var(--color-border-strong)] bg-[var(--color-surface)] flex items-center gap-3">
               <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] border border-[var(--color-border)] px-1.5 py-0.5 rounded">
@@ -557,7 +596,17 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
               </div>
             </div>
           )}
+          </div>
         </div>
+        {drawerOpen && (
+          <aside className="w-[380px] shrink-0 border-l border-[var(--color-border)] flex flex-col min-h-0">
+            <InvestigationChatDrawer
+              investigationId={id}
+              investigationTitle={inv.title}
+              onClose={toggleDrawer}
+            />
+          </aside>
+        )}
       </div>
     </div>
   )

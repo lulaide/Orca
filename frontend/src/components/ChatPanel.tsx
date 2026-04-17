@@ -25,6 +25,10 @@ interface Props {
   conversationId: string | null
   onConversationCreated: (id: string) => void
   onConversationUpdated: () => void
+  /** 由 HomePanel 提交的首条消息。非空时挂载后自动发送一次。 */
+  initialMessage?: string | null
+  /** 自动发送后通知父组件清空 pendingInitialMessage。 */
+  onInitialMessageConsumed?: () => void
 }
 
 const SUGGESTIONS = [
@@ -54,7 +58,13 @@ const SUGGESTIONS = [
   },
 ]
 
-export function ChatPanel({ conversationId, onConversationCreated, onConversationUpdated }: Props) {
+export function ChatPanel({
+  conversationId,
+  onConversationCreated,
+  onConversationUpdated,
+  initialMessage,
+  onInitialMessageConsumed,
+}: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -63,6 +73,8 @@ export function ChatPanel({ conversationId, onConversationCreated, onConversatio
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+  // 确保 initialMessage 只触发一次 send，防止 React Strict Mode 或父组件 re-render 导致重入
+  const initialSentRef = useRef(false)
 
   useEffect(() => {
     abortRef.current?.abort()
@@ -167,6 +179,17 @@ export function ChatPanel({ conversationId, onConversationCreated, onConversatio
       if (abortRef.current === ctrl) abortRef.current = null
     }
   }
+
+  // Home 输入框传入的首条消息：挂载后自动发送一次
+  useEffect(() => {
+    if (!initialMessage) return
+    if (initialSentRef.current) return
+    if (conversationId) return
+    initialSentRef.current = true
+    onInitialMessageConsumed?.()
+    void send(initialMessage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMessage])
 
   // ---- 选中文本 → 浮出 Reply 按钮 → 以 blockquote 形式插入输入框 ----
   const handleSelectionMouseUp = () => {

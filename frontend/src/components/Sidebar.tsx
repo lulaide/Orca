@@ -13,6 +13,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { navigate } from '../navigate'
 
 type Route =
+  | { kind: 'home' }
   | { kind: 'chat'; conversationId: string | null }
   | { kind: 'investigation'; id: string }
   | { kind: 'investigation-list'; view: string }

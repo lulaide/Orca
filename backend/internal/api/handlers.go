@@ -204,6 +204,8 @@ const chatSystemPrompt = `You are Orca, an AI SRE assistant for Kubernetes clust
 
 ## Investigations (persistent tickets)
 Use these tools ONLY when a problem deserves to be remembered and followed up across time or people:
+- ` + "`list_investigations`" + ` — browse active/resolved/archived tickets when the user asks "哪些工单 / what open issues / list investigations".
+- ` + "`get_investigation`" + ` — fetch full detail + timeline for a specific id. **If the user message starts with ` + "`[用户引用的调查]`" + ` block, call this FIRST for each referenced id before answering** — the prefix only gives title/severity/status, you need description and entries to actually reason.
 - ` + "`create_investigation`" + ` — when you discover an issue that warrants tracking (e.g. repeated errors, ambiguous root cause, needs a human decision). Provide a concise title, what you observed, severity, and any related services.
 - ` + "`add_investigation_entry`" + ` — append significant findings (` + "`discovery`" + `), performed actions (` + "`action`" + `), or side notes (` + "`note`" + `). Do NOT use for resolution.
 - ` + "`resolve_investigation`" + ` — close an investigation with root cause + solution AFTER you are confident. This automatically writes a resolution entry.
@@ -333,9 +335,21 @@ func (d *Deps) handleChat(c *gin.Context) {
 	// 5. 跑 Agentic Loop,每产生一条消息即存 + 推
 	// 注入 conversation_id,供 investigation 工具关联到当前对话
 	ctx := context.WithValue(c.Request.Context(), tools.ConversationIDKey, conv.ID)
+	// 把本轮引用的 investigation 作为上下文前缀注入喂给 LLM 的 user message。
+	// 落库的 content 保持原样,前端 UserMessage 通过 metadata 渲染卡片,不受影响。
+	augmentedUserMessage := req.Message
+	if len(refs) > 0 {
+		coreRefs := make([]core.ReferencedInvestigationRef, 0, len(refs))
+		for _, r := range refs {
+			coreRefs = append(coreRefs, core.ReferencedInvestigationRef{
+				ID: r.ID, Title: r.Title, Severity: r.Severity, Status: r.Status,
+			})
+		}
+		augmentedUserMessage = core.BuildReferencedInvestigationsPrefix(coreRefs) + req.Message
+	}
 	result, runErr := d.Engine.Run(ctx, llm.RunInput{
 		SystemPrompt: chatSystemPrompt,
-		UserMessage:  req.Message,
+		UserMessage:  augmentedUserMessage,
 		History:      einoHistory,
 		OnMessage: func(m *schema.Message) {
 			row, err := core.SaveEinoMessage(d.DB, conv.ID, m)

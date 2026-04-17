@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/cloudwego/eino/schema"
@@ -127,12 +128,20 @@ func SaveEinoMessageWithMetadata(
 }
 
 // ToEinoMessages 把 DB 行反序列化成 eino 的 []*schema.Message，用于组 History 喂给 LLM。
+// 对 role=user 的消息，若 metadata.referenced_investigations 非空，会把引用摘要拼到 Content 前,
+// 让 LLM 看到"这条消息引用了哪些 investigation"。前端依旧读原始 Content,不受影响。
 func ToEinoMessages(rows []Message) ([]*schema.Message, error) {
 	out := make([]*schema.Message, 0, len(rows))
 	for _, r := range rows {
+		content := r.Content
+		if r.Role == "user" && len(r.Metadata) > 0 {
+			if prefix := buildReferencedInvestigationsPrefix(r.Metadata); prefix != "" {
+				content = prefix + content
+			}
+		}
 		m := &schema.Message{
 			Role:       schema.RoleType(r.Role),
-			Content:    r.Content,
+			Content:    content,
 			ToolCallID: r.ToolCallID,
 			ToolName:   r.ToolName,
 		}
@@ -146,4 +155,52 @@ func ToEinoMessages(rows []Message) ([]*schema.Message, error) {
 		out = append(out, m)
 	}
 	return out, nil
+}
+
+// BuildReferencedInvestigationsPrefix 给定结构化引用切片，返回注入到 user content 前的文本块。
+// 供 handler 在处理"当前请求的引用"时直接调用（metadata 还未落库也能预先注入）。
+// 切片为空返回空串。
+func BuildReferencedInvestigationsPrefix(refs []ReferencedInvestigationRef) string {
+	if len(refs) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("[用户引用的调查]\n")
+	for _, r := range refs {
+		b.WriteString("- id=")
+		b.WriteString(r.ID)
+		b.WriteString(" | title=")
+		b.WriteString(r.Title)
+		if r.Severity != "" {
+			b.WriteString(" | severity=")
+			b.WriteString(r.Severity)
+		}
+		if r.Status != "" {
+			b.WriteString(" | status=")
+			b.WriteString(r.Status)
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("若需详情或时间线,调用 get_investigation。\n\n")
+	return b.String()
+}
+
+// ReferencedInvestigationRef 是 BuildReferencedInvestigationsPrefix 接受的精简引用形状。
+// 与 API 层 referencedInvestigation 字段一致,但避免 core 依赖 api 包。
+type ReferencedInvestigationRef struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Severity string `json:"severity"`
+	Status   string `json:"status"`
+}
+
+// buildReferencedInvestigationsPrefix 从 JSONB metadata 中解析引用并生成 prefix。
+func buildReferencedInvestigationsPrefix(meta []byte) string {
+	var parsed struct {
+		ReferencedInvestigations []ReferencedInvestigationRef `json:"referenced_investigations"`
+	}
+	if err := json.Unmarshal(meta, &parsed); err != nil {
+		return ""
+	}
+	return BuildReferencedInvestigationsPrefix(parsed.ReferencedInvestigations)
 }

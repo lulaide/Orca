@@ -5,6 +5,7 @@ import (
 
 	"github.com/lulaide/orca/internal/api"
 	"github.com/lulaide/orca/internal/config"
+	"github.com/lulaide/orca/internal/core"
 	"github.com/lulaide/orca/internal/db"
 	"github.com/lulaide/orca/internal/kube"
 	"github.com/lulaide/orca/internal/llm"
@@ -20,7 +21,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("Database: %v", err)
 	}
-	if err := db.AutoMigrate(gormDB, &db.Setting{}); err != nil {
+	if err := db.AutoMigrate(gormDB,
+		&db.Setting{},
+		&core.Conversation{},
+		&core.Message{},
+		&core.Investigation{},
+		&core.InvestigationEntry{},
+	); err != nil {
 		log.Fatalf("Migration: %v", err)
 	}
 

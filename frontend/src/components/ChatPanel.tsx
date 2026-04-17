@@ -1,14 +1,10 @@
-import { useState, useRef, useEffect, type FormEvent } from 'react'
-import { sendMessage } from '../api'
+import { useState, useRef, useEffect, useMemo, type FormEvent } from 'react'
+import { sendMessage, type ChatMessage } from '../api'
 import { MessageBubble } from './MessageBubble'
 
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-}
-
 export function ChatPanel() {
-  const [messages, setMessages] = useState<Message[]>([])
+  const [conversationId, setConversationId] = useState<string | null>(null)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -17,21 +13,56 @@ export function ChatPanel() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
+  // tool_call_id -> output content
+  const toolOutputs = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const m of messages) {
+      if (m.role === 'tool' && m.tool_call_id) {
+        map[m.tool_call_id] = m.content
+      }
+    }
+    return map
+  }, [messages])
+
+  const handleNewChat = () => {
+    if (loading) return
+    setConversationId(null)
+    setMessages([])
+  }
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     const text = input.trim()
     if (!text || loading) return
 
+    // 乐观插入用户消息（用临时 id，后端返回后不再 reconciliate，留着就行）
+    const tempUser: ChatMessage = {
+      id: `temp-${Date.now()}`,
+      conversation_id: conversationId ?? '',
+      role: 'user',
+      content: text,
+      created_at: new Date().toISOString(),
+    }
     setInput('')
-    setMessages(prev => [...prev, { role: 'user', content: text }])
+    setMessages((prev) => [...prev, tempUser])
     setLoading(true)
 
     try {
-      const res = await sendMessage(text)
-      setMessages(prev => [...prev, { role: 'assistant', content: res.reply }])
+      const res = await sendMessage(text, conversationId)
+      setConversationId(res.conversation_id)
+      setMessages((prev) => [...prev, ...res.new_messages])
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
-      setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${msg}` }])
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `err-${Date.now()}`,
+          conversation_id: conversationId ?? '',
+          role: 'assistant',
+          content: `Error: ${msg}`,
+          created_at: new Date().toISOString(),
+        },
+      ])
     } finally {
       setLoading(false)
     }
@@ -39,6 +70,22 @@ export function ChatPanel() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-700 bg-slate-800/50">
+        <span className="text-xs text-slate-500 font-mono truncate">
+          {conversationId ? `conv: ${conversationId.slice(0, 8)}…` : 'new conversation'}
+        </span>
+        <button
+          type="button"
+          onClick={handleNewChat}
+          disabled={loading || messages.length === 0}
+          className="text-xs px-2 py-1 rounded border border-slate-600 text-slate-300
+            hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          New chat
+        </button>
+      </div>
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 && (
@@ -51,18 +98,24 @@ export function ChatPanel() {
             </div>
           </div>
         )}
-        {messages.map((msg, i) => (
-          <MessageBubble key={i} role={msg.role} content={msg.content} />
+        {messages.map((msg) => (
+          <MessageBubble key={msg.id} message={msg} toolOutputs={toolOutputs} />
         ))}
         {loading && (
           <div className="flex justify-start mb-3">
             <div className="bg-slate-700 rounded-lg px-4 py-3 text-sm text-slate-400">
               <span className="inline-flex gap-1">
-                <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
-                <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
-                <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
-              </span>
-              {' '}Thinking...
+                <span className="animate-bounce" style={{ animationDelay: '0ms' }}>
+                  .
+                </span>
+                <span className="animate-bounce" style={{ animationDelay: '150ms' }}>
+                  .
+                </span>
+                <span className="animate-bounce" style={{ animationDelay: '300ms' }}>
+                  .
+                </span>
+              </span>{' '}
+              Thinking...
             </div>
           </div>
         )}
@@ -75,7 +128,7 @@ export function ChatPanel() {
           <input
             type="text"
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={(e) => setInput(e.target.value)}
             placeholder="Ask about your cluster..."
             disabled={loading}
             className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5

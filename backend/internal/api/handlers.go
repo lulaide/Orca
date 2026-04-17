@@ -3,9 +3,11 @@ package api
 import (
 	"net/http"
 
+	"github.com/cloudwego/eino/schema"
 	"github.com/gin-gonic/gin"
 
 	"github.com/lulaide/orca/internal/config"
+	"github.com/lulaide/orca/internal/core"
 	"github.com/lulaide/orca/internal/db"
 	"github.com/lulaide/orca/internal/llm"
 )
@@ -95,12 +97,17 @@ func (d *Deps) handleDisconnectKube(c *gin.Context) {
 // ---- /api/chat ----
 
 type chatRequest struct {
-	Message string `json:"message" binding:"required"`
+	Message        string `json:"message" binding:"required"`
+	ConversationID string `json:"conversation_id"` // 可选；空则新建对话
 }
 
 type chatResponse struct {
-	Reply      string `json:"reply"`
-	Iterations int    `json:"iterations"`
+	ConversationID string         `json:"conversation_id"`
+	Reply          string         `json:"reply"`
+	Iterations     int            `json:"iterations"`
+	// NewMessages 包含本轮产生的所有 assistant/tool 消息（不含用户那条，前端已有）。
+	// 前端按 tool_call_id 把 tool 消息的 content 绑到 assistant 的 tool_calls 展示。
+	NewMessages []core.Message `json:"new_messages"`
 }
 
 const chatSystemPrompt = `You are Orca, an AI SRE assistant for Kubernetes clusters. Follow this diagnostic process when investigating issues:
@@ -137,17 +144,68 @@ func (d *Deps) handleChat(c *gin.Context) {
 		return
 	}
 
+	// 1. 找到或新建 Conversation
+	var conv *core.Conversation
+	if req.ConversationID == "" {
+		cv, err := core.CreateConversation(d.DB, "")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "create conversation: " + err.Error()})
+			return
+		}
+		conv = cv
+	} else {
+		cv, err := core.GetConversation(d.DB, req.ConversationID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "conversation not found"})
+			return
+		}
+		conv = cv
+	}
+
+	// 2. 加载历史（含之前的 tool_calls / tool 消息），组 eino History
+	historyRows, err := core.ListMessages(d.DB, conv.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "load history: " + err.Error()})
+		return
+	}
+	einoHistory, err := core.ToEinoMessages(historyRows)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "decode history: " + err.Error()})
+		return
+	}
+
+	// 3. 保存当前用户消息
+	if _, err := core.SaveEinoMessage(d.DB, conv.ID, schema.UserMessage(req.Message)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "save user message: " + err.Error()})
+		return
+	}
+
+	// 4. 跑 Agentic Loop
 	result, err := d.Engine.Run(c.Request.Context(), llm.RunInput{
 		SystemPrompt: chatSystemPrompt,
 		UserMessage:  req.Message,
+		History:      einoHistory,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	// 5. 保存本轮新消息（assistant tool_calls + tool results + 最终 assistant）
+	newRows := make([]core.Message, 0, len(result.Messages))
+	for _, m := range result.Messages {
+		row, err := core.SaveEinoMessage(d.DB, conv.ID, m)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "save message: " + err.Error()})
+			return
+		}
+		newRows = append(newRows, *row)
+	}
+
 	c.JSON(http.StatusOK, chatResponse{
-		Reply:      result.Final.Content,
-		Iterations: result.Iterations,
+		ConversationID: conv.ID,
+		Reply:          result.Final.Content,
+		Iterations:     result.Iterations,
+		NewMessages:    newRows,
 	})
 }

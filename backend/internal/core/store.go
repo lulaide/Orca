@@ -43,6 +43,43 @@ func ListMessages(db *gorm.DB, convID string) ([]Message, error) {
 	return msgs, nil
 }
 
+// ListConversations 返回所有对话，按 updated_at 降序（最新活动的在前）。
+// 侧边栏列表用，不返回消息内容。
+func ListConversations(db *gorm.DB) ([]Conversation, error) {
+	var convs []Conversation
+	if err := db.Order("updated_at DESC").Find(&convs).Error; err != nil {
+		return nil, err
+	}
+	return convs, nil
+}
+
+// SetConversationTitle 设置对话标题。title 会被截断到 80 字符内，避免过长。
+func SetConversationTitle(db *gorm.DB, id, title string) error {
+	if len(title) > 80 {
+		// 按 rune 截断避免切断 UTF-8 字符
+		runes := []rune(title)
+		if len(runes) > 60 {
+			title = string(runes[:60]) + "…"
+		}
+	}
+	return db.Model(&Conversation{}).Where("id = ?", id).Update("title", title).Error
+}
+
+// TouchConversation 更新 updated_at 时间戳，让该会话在侧边栏排到最前。
+func TouchConversation(db *gorm.DB, id string) error {
+	return db.Model(&Conversation{}).Where("id = ?", id).Update("updated_at", time.Now()).Error
+}
+
+// DeleteConversation 删除对话及其全部消息（不删关联的 Investigation，它们是独立资源）。
+func DeleteConversation(db *gorm.DB, id string) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("conversation_id = ?", id).Delete(&Message{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&Conversation{}, "id = ?", id).Error
+	})
+}
+
 // SaveEinoMessage 把一个 eino schema.Message 拆成 DB 行存入 messages 表。
 // 返回保存后的行（含 ID / CreatedAt）。
 func SaveEinoMessage(db *gorm.DB, convID string, m *schema.Message) (*Message, error) {

@@ -54,6 +54,11 @@ func NewRouter(d *Deps) *gin.Engine {
 		api.POST("/settings/kubernetes/kubeconfig", d.handleUploadKubeconfig)
 		api.DELETE("/settings/kubernetes", d.handleDisconnectKube)
 
+		// Conversations
+		api.GET("/conversations", d.handleListConversations)
+		api.GET("/conversations/:id/messages", d.handleGetConversationMessages)
+		api.DELETE("/conversations/:id", d.handleDeleteConversation)
+
 		// Chat: 最简的对话入口
 		api.POST("/chat", d.handleChat)
 	}

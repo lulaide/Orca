@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/cloudwego/eino/schema"
 	"github.com/gin-gonic/gin"
@@ -13,6 +14,11 @@ import (
 	"github.com/lulaide/orca/internal/db"
 	"github.com/lulaide/orca/internal/llm"
 )
+
+// indexNewline 返回首个换行符位置（\n 或 \r），没有返回 -1。
+func indexNewline(s string) int {
+	return strings.IndexAny(s, "\r\n")
+}
 
 // ---- /api/status ----
 
@@ -94,6 +100,40 @@ func (d *Deps) handleDisconnectKube(c *gin.Context) {
 	d.Kube.Disconnect()
 	_ = db.DeleteSetting(d.DB, "kubernetes")
 	c.JSON(http.StatusOK, d.Kube.Status())
+}
+
+// ---- /api/conversations ----
+
+func (d *Deps) handleListConversations(c *gin.Context) {
+	convs, err := core.ListConversations(d.DB)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, convs)
+}
+
+func (d *Deps) handleGetConversationMessages(c *gin.Context) {
+	id := c.Param("id")
+	if _, err := core.GetConversation(d.DB, id); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "conversation not found"})
+		return
+	}
+	msgs, err := core.ListMessages(d.DB, id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, msgs)
+}
+
+func (d *Deps) handleDeleteConversation(c *gin.Context) {
+	id := c.Param("id")
+	if err := core.DeleteConversation(d.DB, id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // ---- /api/chat ----
@@ -203,6 +243,16 @@ func (d *Deps) handleChat(c *gin.Context) {
 	if err := emit("message", userRow); err != nil {
 		return // 客户端断开,放弃继续
 	}
+
+	// 首条用户消息时自动填充标题（取首行 + 截断）
+	if conv.Title == "" {
+		title := req.Message
+		if i := indexNewline(title); i >= 0 {
+			title = title[:i]
+		}
+		_ = core.SetConversationTitle(d.DB, conv.ID, title)
+	}
+	_ = core.TouchConversation(d.DB, conv.ID)
 
 	// 5. 跑 Agentic Loop,每产生一条消息即存 + 推
 	result, runErr := d.Engine.Run(c.Request.Context(), llm.RunInput{

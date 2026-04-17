@@ -69,7 +69,7 @@ export function ConfirmDialog({
       >
         {/* 头部 tag 条——沿用整站的命令行路径语感 */}
         <div className="flex items-center justify-between px-5 h-9 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
-          <div className="flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.22em]">
+          <div className="flex items-center gap-2 font-mono text-[12px] uppercase tracking-[0.22em]">
             <span className={danger ? 'text-[var(--color-danger)]' : 'text-[var(--color-accent)]'}>
               {tag ?? 'confirm'}
             </span>

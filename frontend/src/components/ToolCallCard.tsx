@@ -49,7 +49,7 @@ export function ToolCallCard({ toolCall, output }: Props) {
         <span className="font-mono text-xs text-[var(--color-text-dim)]">$</span>
         <code className="font-mono text-[12.5px] text-[var(--color-accent)]">{name}</code>
         <span className="flex-1" />
-        <span className={`text-[10px] font-mono uppercase tracking-[0.15em] ${stateColor}`}>
+        <span className={`text-[11.5px] font-mono uppercase tracking-[0.15em] ${stateColor}`}>
           {running && (
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-current mr-1.5 orca-pulse-dot align-middle" />
           )}
@@ -59,7 +59,7 @@ export function ToolCallCard({ toolCall, output }: Props) {
       {open && (
         <div className="px-3 pb-2.5 pt-1 border-t border-[var(--color-border)] space-y-2 orca-fade-in">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-dim)] mb-1 font-mono">
+            <div className="text-[11.5px] uppercase tracking-[0.18em] text-[var(--color-text-dim)] mb-1 font-mono">
               输入
             </div>
             <pre className="bg-[var(--color-bg)] border border-[var(--color-border)] p-2 rounded overflow-x-auto text-[11.5px] font-mono text-[var(--color-text-muted)] leading-[1.55]">
@@ -68,7 +68,7 @@ export function ToolCallCard({ toolCall, output }: Props) {
           </div>
           {!running && (
             <div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-dim)] mb-1 font-mono">
+              <div className="text-[11.5px] uppercase tracking-[0.18em] text-[var(--color-text-dim)] mb-1 font-mono">
                 输出
               </div>
               <pre

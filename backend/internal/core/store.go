@@ -13,9 +13,8 @@ import (
 // CreateConversation 新建一个对话，title 可空（稍后由 LLM 总结填充）。
 func CreateConversation(db *gorm.DB, title string) (*Conversation, error) {
 	c := &Conversation{
-		ID:               uuid.NewString(),
-		Title:            title,
-		InvestigationIDs: datatypes.JSON([]byte("[]")),
+		ID:    uuid.NewString(),
+		Title: title,
 	}
 	if err := db.Create(c).Error; err != nil {
 		return nil, err

@@ -59,6 +59,16 @@ func NewRouter(d *Deps) *gin.Engine {
 		api.GET("/conversations/:id/messages", d.handleGetConversationMessages)
 		api.DELETE("/conversations/:id", d.handleDeleteConversation)
 
+		// Investigations
+		api.GET("/investigations", d.handleListInvestigations)
+		api.POST("/investigations", d.handleCreateInvestigation)
+		api.GET("/investigations/:id", d.handleGetInvestigation)
+		api.PATCH("/investigations/:id", d.handleUpdateInvestigation)
+		api.POST("/investigations/:id/archive", d.handleArchiveInvestigation)
+		api.POST("/investigations/:id/unarchive", d.handleUnarchiveInvestigation)
+		api.GET("/investigations/:id/entries", d.handleListInvestigationEntries)
+		api.POST("/investigations/:id/entries", d.handleCreateInvestigationEntry)
+
 		// Chat: 最简的对话入口
 		api.POST("/chat", d.handleChat)
 	}

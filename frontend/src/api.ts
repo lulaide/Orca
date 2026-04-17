@@ -50,7 +50,6 @@ export async function getStatus(): Promise<StatusResponse> {
 export interface Conversation {
   id: string
   title: string
-  investigation_ids: string[]
   created_at: string
   updated_at: string
 }
@@ -70,6 +69,145 @@ export async function getConversationMessages(id: string): Promise<ChatMessage[]
 export async function deleteConversation(id: string): Promise<void> {
   const res = await fetch(`/api/conversations/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`delete: ${res.status}`)
+}
+
+// ---- Investigations ----
+
+export type InvestigationStatus = 'open' | 'investigating' | 'resolved' | 'stale'
+export type InvestigationSeverity = 'critical' | 'warning' | 'info'
+export type InvestigationView = 'active' | 'resolved' | 'archived' | 'all'
+export type InvestigationEntryType = 'discovery' | 'action' | 'resolution' | 'note'
+
+export interface Investigation {
+  id: string
+  title: string
+  description: string
+  status: InvestigationStatus
+  severity: InvestigationSeverity
+  source: string
+  event_id?: string | null
+  related_services?: string[]
+  root_cause?: string
+  solution?: string
+  archived_at?: string | null
+  created_at: string
+  updated_at: string
+  resolved_at?: string | null
+}
+
+export interface InvestigationEntry {
+  id: string
+  investigation_id: string
+  type: InvestigationEntryType
+  content: string
+  author: string
+  created_at: string
+}
+
+export interface ListInvestigationsOpts {
+  view?: InvestigationView
+  conversationId?: string
+  status?: string
+}
+
+export async function listInvestigations(opts: ListInvestigationsOpts = {}): Promise<Investigation[]> {
+  const params = new URLSearchParams()
+  if (opts.view) params.set('view', opts.view)
+  if (opts.conversationId) params.set('conversation_id', opts.conversationId)
+  if (opts.status) params.set('status', opts.status)
+  const qs = params.toString()
+  const res = await fetch(`/api/investigations${qs ? '?' + qs : ''}`)
+  if (!res.ok) throw new Error(`investigations: ${res.status}`)
+  return res.json()
+}
+
+export async function getInvestigation(id: string): Promise<Investigation> {
+  const res = await fetch(`/api/investigations/${id}`)
+  if (!res.ok) throw new Error(`investigation: ${res.status}`)
+  return res.json()
+}
+
+export interface CreateInvestigationInput {
+  title: string
+  description?: string
+  severity?: InvestigationSeverity
+  source?: string
+  related_services?: string[]
+}
+
+export async function createInvestigation(body: CreateInvestigationInput): Promise<Investigation> {
+  const res = await fetch('/api/investigations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `create investigation: ${res.status}`)
+  }
+  return res.json()
+}
+
+export interface UpdateInvestigationPatch {
+  title?: string
+  description?: string
+  status?: InvestigationStatus
+  severity?: InvestigationSeverity
+  root_cause?: string
+  solution?: string
+}
+
+export async function updateInvestigation(id: string, patch: UpdateInvestigationPatch): Promise<Investigation> {
+  const res = await fetch(`/api/investigations/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `update investigation: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function archiveInvestigation(id: string): Promise<Investigation> {
+  const res = await fetch(`/api/investigations/${id}/archive`, { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `archive: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function unarchiveInvestigation(id: string): Promise<Investigation> {
+  const res = await fetch(`/api/investigations/${id}/unarchive`, { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `unarchive: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function listInvestigationEntries(id: string): Promise<InvestigationEntry[]> {
+  const res = await fetch(`/api/investigations/${id}/entries`)
+  if (!res.ok) throw new Error(`entries: ${res.status}`)
+  return res.json()
+}
+
+export async function createInvestigationEntry(
+  id: string,
+  body: { type: InvestigationEntryType; content: string },
+): Promise<InvestigationEntry> {
+  const res = await fetch(`/api/investigations/${id}/entries`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `create entry: ${res.status}`)
+  }
+  return res.json()
 }
 
 // ---- SSE streaming chat ----

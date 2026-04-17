@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/lulaide/orca/internal/core"
 	"github.com/lulaide/orca/internal/db"
 	"github.com/lulaide/orca/internal/llm"
+	"github.com/lulaide/orca/internal/tools"
 )
 
 // indexNewline 返回首个换行符位置（\n 或 \r），没有返回 -1。
@@ -163,6 +165,14 @@ const chatSystemPrompt = `You are Orca, an AI SRE assistant for Kubernetes clust
 - Propose an actionable solution (concrete commands or manifest changes)
 - Rate confidence: high / medium / low
 
+## Investigations (persistent tickets)
+Use these tools ONLY when a problem deserves to be remembered and followed up across time or people:
+- ` + "`create_investigation`" + ` — when you discover an issue that warrants tracking (e.g. repeated errors, ambiguous root cause, needs a human decision). Provide a concise title, what you observed, severity, and any related services.
+- ` + "`add_investigation_entry`" + ` — append significant findings (` + "`discovery`" + `), performed actions (` + "`action`" + `), or side notes (` + "`note`" + `). Do NOT use for resolution.
+- ` + "`resolve_investigation`" + ` — close an investigation with root cause + solution AFTER you are confident. This automatically writes a resolution entry.
+
+Do NOT open investigations for casual or one-off questions. Archiving and hard-deletion are human-only operations.
+
 ## Rules
 - Be concise and actionable. No filler, no apologies, no restating the question.
 - Reply in the same language as the user's message (中文优先).
@@ -255,7 +265,9 @@ func (d *Deps) handleChat(c *gin.Context) {
 	_ = core.TouchConversation(d.DB, conv.ID)
 
 	// 5. 跑 Agentic Loop,每产生一条消息即存 + 推
-	result, runErr := d.Engine.Run(c.Request.Context(), llm.RunInput{
+	// 注入 conversation_id,供 investigation 工具关联到当前对话
+	ctx := context.WithValue(c.Request.Context(), tools.ConversationIDKey, conv.ID)
+	result, runErr := d.Engine.Run(ctx, llm.RunInput{
 		SystemPrompt: chatSystemPrompt,
 		UserMessage:  req.Message,
 		History:      einoHistory,

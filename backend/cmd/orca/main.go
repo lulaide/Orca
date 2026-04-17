@@ -27,8 +27,15 @@ func main() {
 		&core.Message{},
 		&core.Investigation{},
 		&core.InvestigationEntry{},
+		&core.ConversationInvestigation{},
 	); err != nil {
 		log.Fatalf("Migration: %v", err)
+	}
+	// 清理旧列:Conversation.InvestigationIDs 已被独立 join 表 conversation_investigations 取代
+	if gormDB.Migrator().HasColumn(&core.Conversation{}, "investigation_ids") {
+		if err := gormDB.Migrator().DropColumn(&core.Conversation{}, "investigation_ids"); err != nil {
+			log.Printf("Migration: drop legacy investigation_ids column: %v", err)
+		}
 	}
 
 	// 3. 从 settings 表加载运行时配置,覆盖 bootstrap 值
@@ -65,8 +72,10 @@ func main() {
 
 	// 6. Tool Registry
 	tools.KubeMgr = kubeMgr
+	tools.DB = gormDB
 	reg := tools.NewRegistry()
 	tools.RegisterKubernetesTools(reg)
+	tools.RegisterInvestigationTools(reg)
 	log.Printf("Tools: registered %v", reg.Names())
 
 	// 7. Agent Engine

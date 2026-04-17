@@ -68,6 +68,7 @@ html, body {
   font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   transition: background-color 180ms ease, color 180ms ease;
 }
 

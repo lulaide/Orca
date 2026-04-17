@@ -2,6 +2,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { ChatMessage } from '../api'
 import { ToolCallCard } from './ToolCallCard'
+import { InvestigationRefCard } from './InvestigationRefCard'
 
 // ---- User message ----
 
@@ -61,9 +62,13 @@ function AssistantSegment({
       )}
       {hasTools && (
         <div>
-          {message.tool_calls!.map((tc) => (
-            <ToolCallCard key={tc.id} toolCall={tc} output={toolOutputs[tc.id]} />
-          ))}
+          {message.tool_calls!.map((tc) =>
+            tc.function.name === 'create_investigation' ? (
+              <InvestigationRefCard key={tc.id} toolCall={tc} output={toolOutputs[tc.id]} />
+            ) : (
+              <ToolCallCard key={tc.id} toolCall={tc} output={toolOutputs[tc.id]} />
+            ),
+          )}
         </div>
       )}
     </div>

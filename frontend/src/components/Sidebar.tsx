@@ -3,16 +3,25 @@ import {
   listConversations,
   deleteConversation,
   getStatus,
+  listInvestigations,
   type Conversation,
+  type Investigation,
   type StatusResponse,
 } from '../api'
 import { applyTheme, type Theme } from '../theme'
 import { ConfirmDialog } from './ConfirmDialog'
+import { navigate } from '../navigate'
+
+type Route =
+  | { kind: 'chat'; conversationId: string | null }
+  | { kind: 'investigation'; id: string }
+  | { kind: 'investigation-list'; view: string }
 
 interface Props {
   activeId: string | null
   onSelect: (id: string | null) => void
   refreshToken: number
+  route?: Route
 }
 
 function formatTime(iso: string): string {
@@ -35,8 +44,9 @@ function currentTheme(): Theme {
   return (document.documentElement.getAttribute('data-theme') as Theme) || 'light'
 }
 
-export function Sidebar({ activeId, onSelect, refreshToken }: Props) {
+export function Sidebar({ activeId, onSelect, refreshToken, route }: Props) {
   const [convs, setConvs] = useState<Conversation[]>([])
+  const [invs, setInvs] = useState<Investigation[]>([])
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [theme, setTheme] = useState<Theme>(currentTheme())
@@ -44,7 +54,13 @@ export function Sidebar({ activeId, onSelect, refreshToken }: Props) {
 
   useEffect(() => {
     listConversations().then(setConvs).catch(console.error)
+    listInvestigations({ view: 'active' })
+      .then((list) => setInvs(list.slice(0, 5)))
+      .catch(console.error)
   }, [refreshToken])
+
+  const activeInvId = route?.kind === 'investigation' ? route.id : null
+  const onInvListRoute = route?.kind === 'investigation-list'
 
   useEffect(() => {
     const load = () => getStatus().then(setStatus).catch(() => {})
@@ -124,9 +140,63 @@ export function Sidebar({ activeId, onSelect, refreshToken }: Props) {
         </button>
       </div>
 
+      {/* Investigations section */}
+      <div className="px-2 pb-2 border-b border-[var(--color-border)]">
+        <div className="flex items-center justify-between px-3 py-1.5">
+          <span className="text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono">
+            调查 · investigations
+          </span>
+          <button
+            type="button"
+            onClick={() => navigate('/i')}
+            className={`text-[11.5px] font-mono transition-colors
+              ${onInvListRoute ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-dim)] hover:text-[var(--color-text-muted)]'}`}
+          >
+            查看全部 →
+          </button>
+        </div>
+        {invs.length === 0 ? (
+          <div className="px-3 py-1.5 text-[11.5px] text-[var(--color-text-dim)] italic">
+            暂无进行中
+          </div>
+        ) : (
+          invs.map((iv) => {
+            const active = iv.id === activeInvId
+            return (
+              <button
+                key={iv.id}
+                type="button"
+                onClick={() => navigate(`/i/${iv.id}`)}
+                className={`group w-full relative flex items-center gap-2 pl-4 pr-2 py-[6px] rounded-md
+                  text-left text-[12.5px] transition-colors
+                  ${active
+                    ? 'bg-[var(--color-bg)] text-[var(--color-text)]'
+                    : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text)]'}`}
+              >
+                {active && (
+                  <span className="absolute left-1 top-1/2 -translate-y-1/2 w-[2px] h-4 bg-[var(--color-accent)]" />
+                )}
+                <span
+                  className="shrink-0 w-1.5 h-1.5 rounded-full"
+                  style={{
+                    backgroundColor:
+                      iv.severity === 'critical'
+                        ? 'var(--color-danger)'
+                        : iv.severity === 'warning'
+                        ? 'var(--color-warn)'
+                        : 'var(--color-text-dim)',
+                  }}
+                />
+                <span className="flex-1 truncate">{iv.title}</span>
+              </button>
+            )
+          })
+        )}
+      </div>
+
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto px-2 pb-2">
-        <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono">
+        <div className="px-3 py-1.5 text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono">
           最近
         </div>
         {convs.length === 0 && (
@@ -167,7 +237,7 @@ export function Sidebar({ activeId, onSelect, refreshToken }: Props) {
                   </svg>
                 </button>
               ) : (
-                <span className="shrink-0 text-[10px] text-[var(--color-text-dim)] font-mono tabular-nums">
+                <span className="shrink-0 text-[11.5px] text-[var(--color-text-dim)] font-mono tabular-nums">
                   {formatTime(c.updated_at)}
                 </span>
               )}

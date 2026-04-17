@@ -237,7 +237,7 @@ export function ChatPanel({ conversationId, onConversationCreated, onConversatio
           style={{ top: quoteSel.top, left: quoteSel.left, transform: 'translateY(-100%)' }}
         >
           Reply
-          <span className="text-[10px] opacity-70">↵</span>
+          <span className="text-[11.5px] opacity-70">↵</span>
         </button>
       )}
       {/* Header bar — 命令行路径风格 */}
@@ -363,7 +363,7 @@ export function ChatPanel({ conversationId, onConversationCreated, onConversatio
             </button>
           </div>
           </div>
-          <div className="mt-2 px-1 text-[10.5px] text-[var(--color-text-dim)] font-mono">
+          <div className="mt-2 px-1 text-[12px] text-[var(--color-text-dim)] font-mono">
             Orca 会调用只读工具进行排查·所有操作可在时间线中审计
           </div>
         </form>
@@ -376,7 +376,7 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
   return (
     <div className="py-10 orca-fade-in">
       <div className="mb-8">
-        <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--color-text-dim)] font-mono mb-3">
+        <div className="text-[11.5px] uppercase tracking-[0.25em] text-[var(--color-text-dim)] font-mono mb-3">
           ready · 就绪
         </div>
         <h1 className="font-serif-display text-[44px] leading-[1.05] text-[var(--color-text)] mb-3">
@@ -398,7 +398,7 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
               hover:bg-[var(--color-surface)]
               transition-colors"
           >
-            <span className="shrink-0 w-14 text-[10px] uppercase tracking-[0.18em] font-mono text-[var(--color-accent)]">
+            <span className="shrink-0 w-14 text-[11.5px] uppercase tracking-[0.18em] font-mono text-[var(--color-accent)]">
               {s.tag}
             </span>
             <span className="flex-1 min-w-0">

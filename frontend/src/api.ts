@@ -28,6 +28,18 @@ export interface ToolCall {
   }
 }
 
+// 被引用的 investigation 摘要，存在 message.metadata 里，用户 bubble 上方渲染卡片。
+export interface ReferencedInvestigation {
+  id: string
+  title: string
+  severity: InvestigationSeverity
+  status: InvestigationStatus
+}
+
+export interface ChatMessageMetadata {
+  referenced_investigations?: ReferencedInvestigation[]
+}
+
 export interface ChatMessage {
   id: string
   conversation_id: string
@@ -36,6 +48,7 @@ export interface ChatMessage {
   tool_calls?: ToolCall[]
   tool_call_id?: string
   tool_name?: string
+  metadata?: ChatMessageMetadata
   created_at: string
 }
 
@@ -101,6 +114,22 @@ export async function getConversationMessages(id: string): Promise<ChatMessage[]
 export async function deleteConversation(id: string): Promise<void> {
   const res = await fetch(`/api/conversations/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`delete: ${res.status}`)
+}
+
+// 列出本对话已关联的 investigations（顶部 chip bar 用）
+export async function listConversationInvestigations(convId: string): Promise<Investigation[]> {
+  const res = await fetch(`/api/conversations/${convId}/investigations`)
+  if (!res.ok) throw new Error(`conversation investigations: ${res.status}`)
+  return res.json()
+}
+
+// 解除对话与某 investigation 的关联（不删 investigation 本体）
+export async function unlinkInvestigationFromConversation(convId: string, invId: string): Promise<void> {
+  const res = await fetch(`/api/conversations/${convId}/investigations/${invId}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `unlink: ${res.status}`)
+  }
 }
 
 // ---- Investigations ----
@@ -252,6 +281,8 @@ export type ChatStreamEvent =
 export interface StreamChatHandlers {
   onEvent: (ev: ChatStreamEvent) => void
   signal?: AbortSignal
+  // 本轮用户消息引用的 investigation id 列表（顺序无关，后端去重）
+  referencedInvestigationIDs?: string[]
 }
 
 /**
@@ -262,7 +293,7 @@ export interface StreamChatHandlers {
 export async function streamChat(
   message: string,
   conversationId: string | null,
-  { onEvent, signal }: StreamChatHandlers,
+  { onEvent, signal, referencedInvestigationIDs }: StreamChatHandlers,
 ): Promise<void> {
   const res = await fetch('/api/chat', {
     method: 'POST',
@@ -270,6 +301,7 @@ export async function streamChat(
     body: JSON.stringify({
       message,
       conversation_id: conversationId ?? '',
+      referenced_investigation_ids: referencedInvestigationIDs ?? [],
     }),
     signal,
   })

@@ -43,6 +43,7 @@ func NewRouter(d *Deps) *gin.Engine {
 	{
 		// 系统状态概览
 		api.GET("/status", d.handleStatus)
+		api.GET("/cluster/metrics", d.handleClusterMetrics)
 
 		// Settings: LLM
 		api.GET("/settings/llm", d.handleGetLLMSettings)

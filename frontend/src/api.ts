@@ -45,6 +45,38 @@ export async function getStatus(): Promise<StatusResponse> {
   return res.json()
 }
 
+// ---- Cluster metrics (Lens 风格 CPU/Memory/Pods 三卡) ----
+
+export interface ClusterMetrics {
+  cpu: {
+    usage: number | null      // cores
+    requests: number
+    limits: number
+    allocatable: number
+    capacity: number
+  }
+  memory: {
+    usage: number | null      // bytes
+    requests: number
+    limits: number
+    allocatable: number
+    capacity: number
+  }
+  pods: {
+    usage: number
+    allocatable: number
+    capacity: number
+  }
+  nodes: { total: number; ready: number }
+  metrics_available: boolean
+}
+
+export async function getClusterMetrics(): Promise<ClusterMetrics> {
+  const res = await fetch('/api/cluster/metrics')
+  if (!res.ok) throw new Error(`cluster/metrics: ${res.status}`)
+  return res.json()
+}
+
 // ---- Conversations ----
 
 export interface Conversation {

@@ -39,12 +39,12 @@ type Message struct {
 	CreatedAt      time.Time      `json:"created_at"`
 }
 
-// Investigation 是一个独立的问题追踪资源（类似工单）。
+// Investigation 是一个独立的问题追踪资源,代表一次"调查"。
 // 由事件自动生成，或 AI/用户在对话中主动创建。
 //
 // ArchivedAt 为非空表示已归档——从"进行中/已解决"默认视图隐藏，
 // 但详情与历史引用仍可查。与 Status 正交：Status 描述问题本身，
-// ArchivedAt 描述工单生命周期。
+// ArchivedAt 描述调查的生命周期。
 type Investigation struct {
 	ID              string         `gorm:"primaryKey" json:"id"`
 	Title           string         `json:"title"`

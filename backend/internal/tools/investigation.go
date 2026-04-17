@@ -52,7 +52,7 @@ type investigationBrief struct {
 func listInvestigationsInfo() *schema.ToolInfo {
 	return &schema.ToolInfo{
 		Name: "list_investigations",
-		Desc: "List existing Investigations (tickets). Use to show the user what's being tracked, or to find an Investigation by keyword before drilling in with get_investigation. Returns brief records ordered by most recently updated.",
+		Desc: "List existing Investigations. Use to show the user what's being tracked, or to find an Investigation by keyword before drilling in with get_investigation. Returns brief records ordered by most recently updated.",
 		ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
 			"view": {
 				Type:     schema.String,
@@ -270,7 +270,7 @@ type createInvestigationResult struct {
 func createInvestigationInfo() *schema.ToolInfo {
 	return &schema.ToolInfo{
 		Name: "create_investigation",
-		Desc: "Open a new Investigation (like a ticket) to track a problem that needs follow-up across time or people. Use when you discover an issue that should be remembered, assigned, and resolved with a clear root cause and solution. Don't use for casual or one-off questions.",
+		Desc: "Open a new Investigation to track a problem that needs follow-up across time or people. Use when you discover an issue that should be remembered, assigned, and resolved with a clear root cause and solution. Don't use for casual or one-off questions.",
 		ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
 			"title": {
 				Type:     schema.String,

@@ -74,7 +74,7 @@ Agent Core
 
 ### Investigation（调查）
 
-一个独立的资源,代表**一个待解决的问题**,类似工单。不绑定到某个特定对话——多个对话可以引用同一个 Investigation,一个对话也可以涉及多个 Investigation（多对多关系,通过 conversation_investigations 表关联）。
+一个独立的资源,代表**一个待解决的问题**。不绑定到某个特定对话——多个对话可以引用同一个 Investigation,一个对话也可以涉及多个 Investigation（多对多关系,通过 conversation_investigations 表关联）。
 
 创建方式：事件触发自动创建 / AI 在 ASK 对话中发现问题后调工具创建 / 用户手动创建。
 

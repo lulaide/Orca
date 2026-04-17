@@ -210,7 +210,7 @@ function EmptyView({ onCreate }: { onCreate: () => void }) {
         还没有任何调查
       </h2>
       <p className="text-[13px] text-[var(--color-text-muted)] mb-5 leading-relaxed max-w-md">
-        调查是 Orca 的"工单"——当 AI 在对话里发现要跨时间跟进的问题，会自动开一张；你也可以手工新建。
+        调查是 Orca 中一个待解决问题的持久记录——当 AI 在对话里发现要跨时间跟进的问题，会自动开一条；你也可以手工新建。
       </p>
       <button
         type="button"

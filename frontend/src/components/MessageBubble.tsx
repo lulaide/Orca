@@ -3,56 +3,69 @@ import remarkGfm from 'remark-gfm'
 import type { ChatMessage } from '../api'
 import { ToolCallCard } from './ToolCallCard'
 
-interface Props {
-  message: ChatMessage
-  /** tool_call_id -> output content map，用于把 tool 消息的 content 绑到 assistant.tool_calls */
+// ---- User message ----
+
+export function UserMessage({ message }: { message: ChatMessage }) {
+  return (
+    <div className="flex justify-end mb-6 orca-fade-in">
+      <div
+        className="max-w-[78%] rounded-lg px-4 py-2.5
+          text-[0.9375rem] leading-relaxed
+          bg-[var(--color-user-bubble)] text-[var(--color-user-bubble-text)]"
+      >
+        <p className="whitespace-pre-wrap">{message.content}</p>
+      </div>
+    </div>
+  )
+}
+
+// ---- Assistant turn: 一轮 LLM run 里所有 assistant 消息共用一个左侧 accent bar ----
+
+interface AssistantTurnProps {
+  messages: ChatMessage[]
   toolOutputs: Record<string, string>
 }
 
-export function MessageBubble({ message, toolOutputs }: Props) {
-  // tool 消息已经消费进 toolOutputs，不单独渲染
-  if (message.role === 'tool' || message.role === 'system') {
-    return null
-  }
-
-  if (message.role === 'user') {
-    return (
-      <div className="flex justify-end mb-3">
-        <div className="max-w-[75%] rounded-lg px-4 py-3 text-sm leading-relaxed bg-blue-600 text-white">
-          <p className="whitespace-pre-wrap">{message.content}</p>
-        </div>
+export function AssistantTurn({ messages, toolOutputs }: AssistantTurnProps) {
+  return (
+    <div className="mb-7 orca-fade-in pl-4 border-l-2 border-[var(--color-accent)]/60">
+      <div className="flex items-center gap-2 mb-2 -ml-[22px]">
+        <span className="w-4 h-4 rounded-full bg-[var(--color-bg)] border-2 border-[var(--color-accent)] shadow-[0_0_0_3px_var(--color-bg)]" />
+        <span className="font-serif-display text-[15px] text-[var(--color-text-muted)]">orca</span>
       </div>
-    )
-  }
+      <div className="space-y-1" data-assistant-content="true">
+        {messages.map((m) => (
+          <AssistantSegment key={m.id} message={m} toolOutputs={toolOutputs} />
+        ))}
+      </div>
+    </div>
+  )
+}
 
-  // assistant
-  const hasTools = message.tool_calls && message.tool_calls.length > 0
+function AssistantSegment({
+  message,
+  toolOutputs,
+}: {
+  message: ChatMessage
+  toolOutputs: Record<string, string>
+}) {
   const hasText = message.content.length > 0
+  const hasTools = message.tool_calls && message.tool_calls.length > 0
 
   return (
-    <div className="flex justify-start mb-3">
-      <div className="max-w-[85%] w-full rounded-lg px-4 py-3 text-sm leading-relaxed bg-slate-700 text-slate-200">
-        {hasTools && (
-          <div>
-            {message.tool_calls!.map((tc) => (
-              <ToolCallCard key={tc.id} toolCall={tc} output={toolOutputs[tc.id]} />
-            ))}
-          </div>
-        )}
-        {hasText && (
-          <div
-            className="prose prose-sm prose-invert max-w-none
-              prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5
-              prose-headings:text-slate-100 prose-strong:text-slate-100
-              prose-code:bg-slate-600 prose-code:px-1 prose-code:rounded
-              prose-pre:bg-slate-800 prose-pre:border prose-pre:border-slate-600
-              prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1
-              prose-th:border prose-th:border-slate-600 prose-td:border prose-td:border-slate-600"
-          >
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-          </div>
-        )}
-      </div>
+    <div>
+      {hasText && (
+        <div className="orca-prose mb-1">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+        </div>
+      )}
+      {hasTools && (
+        <div>
+          {message.tool_calls!.map((tc) => (
+            <ToolCallCard key={tc.id} toolCall={tc} output={toolOutputs[tc.id]} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

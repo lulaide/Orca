@@ -45,6 +45,33 @@ export async function getStatus(): Promise<StatusResponse> {
   return res.json()
 }
 
+// ---- Conversations ----
+
+export interface Conversation {
+  id: string
+  title: string
+  investigation_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
+export async function listConversations(): Promise<Conversation[]> {
+  const res = await fetch('/api/conversations')
+  if (!res.ok) throw new Error(`conversations: ${res.status}`)
+  return res.json()
+}
+
+export async function getConversationMessages(id: string): Promise<ChatMessage[]> {
+  const res = await fetch(`/api/conversations/${id}/messages`)
+  if (!res.ok) throw new Error(`messages: ${res.status}`)
+  return res.json()
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  const res = await fetch(`/api/conversations/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`delete: ${res.status}`)
+}
+
 // ---- SSE streaming chat ----
 
 export type ChatStreamEvent =

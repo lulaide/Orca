@@ -1,14 +1,241 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-body {
+/* ================================================================
+   Design tokens — Light (default, "paper") & Dark ("deep harbor")
+   ---------------------------------------------------------------- */
+@theme {
+  /* Light theme — warm paper, deep teal accent */
+  --color-bg: #f4efe3;
+  --color-bg-grid: rgba(40, 34, 20, 0.04);
+  --color-surface: #faf6ea;
+  --color-surface-2: #ece5d1;
+  --color-surface-3: #ddd3b8;
+  --color-border: #d2c8ac;
+  --color-border-strong: #b8ac87;
+  --color-text: #1c1f23;
+  --color-text-muted: #575a61;
+  --color-text-dim: #8b8b85;
+  --color-accent: #0d6b56;
+  --color-accent-hover: #0f8267;
+  --color-accent-dim: #09503f;
+  --color-accent-soft: rgba(13, 107, 86, 0.1);
+  --color-ok: #2f855a;
+  --color-warn: #b7791f;
+  --color-danger: #a5301e;
+  --color-user-bubble: #1c1f23;
+  --color-user-bubble-text: #faf6ea;
+
+  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-serif: 'Instrument Serif', ui-serif, Georgia, 'Source Han Serif SC',
+    'Noto Serif SC', serif;
+}
+
+/* Dark — deep harbor (warm navy, mint accent) */
+[data-theme='dark'] {
+  --color-bg: #0e1620;
+  --color-bg-grid: rgba(255, 245, 220, 0.025);
+  --color-surface: #151f2c;
+  --color-surface-2: #1d2838;
+  --color-surface-3: #273348;
+  --color-border: #273348;
+  --color-border-strong: #3b4860;
+  --color-text: #e8e2d0;
+  --color-text-muted: #9098a8;
+  --color-text-dim: #606773;
+  --color-accent: #3cd2a3;
+  --color-accent-hover: #5ee7c0;
+  --color-accent-dim: #0f6d55;
+  --color-accent-soft: rgba(60, 210, 163, 0.12);
+  --color-ok: #4ade80;
+  --color-warn: #fbbf24;
+  --color-danger: #fb7185;
+  --color-user-bubble: #e8e2d0;
+  --color-user-bubble-text: #0e1620;
+}
+
+/* ================================================================ */
+html, body {
   margin: 0;
-  background: #0f172a;
-  color: #e2e8f0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
 #root {
   height: 100vh;
   display: flex;
-  flex-direction: column;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+/* ================================================================
+   Scrollbar — quiet, themed
+   ---------------------------------------------------------------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-accent) 50%, var(--color-border-strong));
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+/* 表单控件由容器自己处理聚焦态，避免全局 accent outline 渗到输入框 */
+textarea:focus-visible,
+input:focus-visible {
+  outline: none;
+}
+
+/* ================================================================
+   Keyframes
+   ---------------------------------------------------------------- */
+@keyframes orca-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.9); }
+  50%      { opacity: 1;   transform: scale(1); }
+}
+@keyframes orca-fade-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes orca-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.orca-fade-in { animation: orca-fade-in 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+.orca-pulse-dot { animation: orca-pulse 1.4s ease-in-out infinite; }
+.orca-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-accent) 30%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: orca-shimmer 1.6s linear infinite;
+}
+
+/* ================================================================
+   Chat background — subtle dot grid ("blueprint" vibe)
+   ---------------------------------------------------------------- */
+.orca-grid {
+  background-image: radial-gradient(circle, var(--color-bg-grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 12px 12px;
+}
+
+/* ================================================================
+   Prose tweaks — tighter, type-forward
+   ---------------------------------------------------------------- */
+.orca-prose {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--color-text);
+}
+.orca-prose p { margin: 0.45em 0; }
+.orca-prose p:first-child { margin-top: 0; }
+.orca-prose p:last-child  { margin-bottom: 0; }
+.orca-prose h1, .orca-prose h2, .orca-prose h3 {
+  color: var(--color-text);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+  line-height: 1.3;
+}
+.orca-prose h1 { font-size: 1.2rem; }
+.orca-prose h2 { font-size: 1.08rem; }
+.orca-prose h3 { font-size: 1rem; }
+.orca-prose ul, .orca-prose ol {
+  margin: 0.4em 0;
+  padding-left: 1.4em;
+}
+.orca-prose li { margin: 0.2em 0; }
+.orca-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--color-accent-soft);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  color: var(--color-accent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+.orca-prose pre {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  padding: 0.8rem 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0.6em 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+.orca-prose pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--color-text);
+}
+.orca-prose table {
+  border-collapse: collapse;
+  margin: 0.7em 0;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.orca-prose th, .orca-prose td {
+  border: 1px solid var(--color-border);
+  padding: 0.4em 0.75em;
+  text-align: left;
+}
+.orca-prose th {
+  background: var(--color-surface-2);
+  font-weight: 600;
+  color: var(--color-text);
+}
+.orca-prose strong { color: var(--color-text); font-weight: 600; }
+.orca-prose a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  text-underline-offset: 2px;
+}
+.orca-prose a:hover { text-decoration-color: var(--color-accent); }
+.orca-prose blockquote {
+  border-left: 2px solid var(--color-accent);
+  padding-left: 0.9em;
+  color: var(--color-text-muted);
+  margin: 0.6em 0;
+}
+
+/* Utility shorthands used by components */
+.font-serif-display {
+  font-family: var(--font-serif);
+  font-style: italic;
+  letter-spacing: -0.01em;
 }

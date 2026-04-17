@@ -1,6 +1,18 @@
 import { useState, useRef, useEffect, useMemo, type FormEvent, type KeyboardEvent } from 'react'
-import { streamChat, getConversationMessages, type ChatMessage } from '../api'
+import {
+  streamChat,
+  getConversationMessages,
+  listConversationInvestigations,
+  unlinkInvestigationFromConversation,
+  type ChatMessage,
+  type Investigation,
+  type ReferencedInvestigation,
+} from '../api'
 import { UserMessage, AssistantTurn } from './MessageBubble'
+import { InvestigationPicker } from './InvestigationPicker'
+import { InvestigationReferenceDraftChip } from './InvestigationReferenceCard'
+import { SeverityDot, StatusBadge } from './investigationUI'
+import { navigate } from '../navigate'
 
 type Turn =
   | { kind: 'user'; message: ChatMessage }
@@ -19,6 +31,10 @@ function groupIntoTurns(messages: ChatMessage[]): Turn[] {
     // tool / system: tool 通过 toolOutputs 绑到 ToolCallCard，system 不展示
   }
   return turns
+}
+
+function toRefSummary(inv: Investigation): ReferencedInvestigation {
+  return { id: inv.id, title: inv.title, severity: inv.severity, status: inv.status }
 }
 
 interface Props {
@@ -70,6 +86,17 @@ export function ChatPanel({
   const [loading, setLoading] = useState(false)
   const [quoteSel, setQuoteSel] = useState<{ text: string; top: number; left: number } | null>(null)
   const [quoteDraft, setQuoteDraft] = useState<string | null>(null)
+  // 本轮发送前已选中的引用
+  const [referencedInvs, setReferencedInvs] = useState<ReferencedInvestigation[]>([])
+  // 本对话已关联的 investigations（顶部 chip bar）
+  const [convInvestigations, setConvInvestigations] = useState<Investigation[]>([])
+  // picker 状态
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerQuery, setPickerQuery] = useState('')
+  const [pickerAnchor, setPickerAnchor] = useState<{ x: number; y: number } | undefined>(undefined)
+  // @ 触发时记录在 textarea 里的起始位置,用于 pick 后删掉 @token
+  const atTokenRef = useRef<{ start: number; end: number } | null>(null)
+
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -79,8 +106,10 @@ export function ChatPanel({
   useEffect(() => {
     abortRef.current?.abort()
     setLoading(false)
+    setReferencedInvs([])
     if (!conversationId) {
       setMessages([])
+      setConvInvestigations([])
       return
     }
     let cancelled = false
@@ -95,6 +124,17 @@ export function ChatPanel({
     return () => {
       cancelled = true
     }
+  }, [conversationId])
+
+  // 拉取本对话已关联的 investigations
+  const refreshConvInvs = (id: string) => {
+    listConversationInvestigations(id)
+      .then((list) => setConvInvestigations(list))
+      .catch(() => {})
+  }
+  useEffect(() => {
+    if (!conversationId) return
+    refreshConvInvs(conversationId)
   }, [conversationId])
 
   useEffect(() => {
@@ -126,8 +166,10 @@ export function ChatPanel({
       ? quoteDraft.split(/\r?\n/).map((l) => `> ${l}`).join('\n') + '\n\n'
       : ''
     const finalText = quoted + text
+    const refIds = referencedInvs.map((r) => r.id)
     setInput('')
     setQuoteDraft(null)
+    setReferencedInvs([])
     setLoading(true)
     const ctrl = new AbortController()
     abortRef.current = ctrl
@@ -137,6 +179,7 @@ export function ChatPanel({
     try {
       await streamChat(finalText, conversationId, {
         signal: ctrl.signal,
+        referencedInvestigationIDs: refIds,
         onEvent: (ev) => {
           if (ev.type === 'message') {
             setMessages((prev) => [...prev, ev.message])
@@ -146,6 +189,9 @@ export function ChatPanel({
           } else if (ev.type === 'done') {
             if (createdId) onConversationCreated(createdId)
             onConversationUpdated()
+            // 刷新顶部 chip bar（Agent 可能调了 create_investigation）
+            const cid = conversationId ?? createdId
+            if (cid) refreshConvInvs(cid)
           } else if (ev.type === 'error') {
             setMessages((prev) => [
               ...prev,
@@ -231,6 +277,78 @@ export function ChatPanel({
     setTimeout(() => textareaRef.current?.focus(), 0)
   }
 
+  // ---- @ 触发 picker ----
+  // 扫描 cursor 前最近的未结束 @token（@ 到空白/行首之间无空白），命中则开启 picker
+  const detectAtToken = () => {
+    const ta = textareaRef.current
+    if (!ta) return
+    const pos = ta.selectionStart ?? 0
+    const before = ta.value.slice(0, pos)
+    // 找最后一个 @ 并确保到 pos 之间没空白
+    const atIdx = before.lastIndexOf('@')
+    if (atIdx < 0) {
+      if (pickerAnchor) setPickerOpen(false)
+      return
+    }
+    const token = before.slice(atIdx + 1)
+    if (/\s/.test(token)) {
+      if (pickerAnchor) setPickerOpen(false)
+      return
+    }
+    // 命中：记录 token 范围，用 caret 位置做 anchor
+    atTokenRef.current = { start: atIdx, end: pos }
+    setPickerQuery(token)
+    // caret 屏幕坐标用 textarea 自身 rect + 粗略行高近似
+    const rect = ta.getBoundingClientRect()
+    setPickerAnchor({ x: Math.max(8, rect.left + 12), y: rect.top - 8 })
+    setPickerOpen(true)
+  }
+
+  const handleInput = () => {
+    detectAtToken()
+  }
+
+  // attach 按钮触发：不在 textarea 里，也没有 @token
+  const toggleAttachPicker = () => {
+    atTokenRef.current = null
+    setPickerAnchor(undefined)
+    setPickerQuery('')
+    setPickerOpen((v) => !v)
+  }
+
+  const handlePick = (inv: Investigation) => {
+    const ref = toRefSummary(inv)
+    setReferencedInvs((prev) => (prev.some((r) => r.id === ref.id) ? prev : [...prev, ref]))
+    // @ 触发的要从 textarea 里删掉 @token
+    const tok = atTokenRef.current
+    if (tok) {
+      const ta = textareaRef.current
+      const v = ta?.value ?? input
+      const next = v.slice(0, tok.start) + v.slice(tok.end)
+      setInput(next)
+      // 恢复光标到 @ 处
+      setTimeout(() => {
+        if (ta) {
+          ta.focus()
+          ta.selectionStart = ta.selectionEnd = tok.start
+        }
+      }, 0)
+    }
+    atTokenRef.current = null
+    setPickerOpen(false)
+    setPickerQuery('')
+  }
+
+  const handleUnlinkConvInv = async (invId: string) => {
+    if (!conversationId) return
+    try {
+      await unlinkInvestigationFromConversation(conversationId, invId)
+      setConvInvestigations((prev) => prev.filter((i) => i.id !== invId))
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     void send(input.trim())
@@ -279,6 +397,25 @@ export function ChatPanel({
         </span>
       </header>
 
+      {/* 顶部 chip bar：本对话已关联的 investigations */}
+      {conversationId && convInvestigations.length > 0 && (
+        <div className="border-b border-[var(--color-border)] bg-[var(--color-bg)] px-6 py-2">
+          <div className="max-w-3xl mx-auto flex items-center gap-2 flex-wrap">
+            <span className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] mr-1">
+              引用
+            </span>
+            {convInvestigations.map((inv) => (
+              <ConvInvChip
+                key={inv.id}
+                inv={inv}
+                onOpen={() => navigate(`/i/${inv.id}`)}
+                onRemove={() => void handleUnlinkConvInv(inv.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Messages — dot-grid 背景 */}
       <div className="flex-1 overflow-y-auto orca-grid" onMouseUp={handleSelectionMouseUp}>
         <div className="max-w-3xl mx-auto px-6 py-10">
@@ -302,96 +439,188 @@ export function ChatPanel({
       {/* Composer */}
       <div className="border-t border-[var(--color-border)] bg-[var(--color-bg)]">
         <form onSubmit={handleSubmit} className="max-w-3xl mx-auto px-6 py-4">
-          <div
-            className="rounded-lg border border-[var(--color-border-strong)]
-              bg-[var(--color-surface)]
-              focus-within:border-[var(--color-text)]
-              transition-colors"
-          >
-            {quoteDraft && (
-              <div
-                className="flex items-start gap-2 px-3 py-2 border-b border-[var(--color-border)]
-                  orca-fade-in"
-              >
-                <span className="shrink-0 text-[var(--color-text-dim)] font-mono text-[12px] pt-[2px]">
-                  ↳
-                </span>
-                <div className="flex-1 min-w-0 text-[12.5px] text-[var(--color-text-muted)] leading-snug whitespace-pre-wrap break-words max-h-16 overflow-hidden line-clamp-2">
-                  {quoteDraft}
+          {/* picker as attach-dropdown 模式：挂在 composer 外层容器，相对定位 */}
+          <div className="relative">
+            {pickerOpen && !pickerAnchor && (
+              <InvestigationPicker
+                open={pickerOpen}
+                searchQuery={pickerQuery}
+                onSearchQueryChange={setPickerQuery}
+                excludeIds={referencedInvs.map((r) => r.id)}
+                onPick={handlePick}
+                onClose={() => setPickerOpen(false)}
+              />
+            )}
+            <div
+              className="rounded-lg border border-[var(--color-border-strong)]
+                bg-[var(--color-surface)]
+                focus-within:border-[var(--color-text)]
+                transition-colors"
+            >
+              {/* 草稿引用 chips */}
+              {referencedInvs.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 px-3 py-2 border-b border-[var(--color-border)]">
+                  {referencedInvs.map((r) => (
+                    <InvestigationReferenceDraftChip
+                      key={r.id}
+                      inv={r}
+                      onRemove={() =>
+                        setReferencedInvs((prev) => prev.filter((x) => x.id !== r.id))
+                      }
+                    />
+                  ))}
                 </div>
+              )}
+              {quoteDraft && (
+                <div
+                  className="flex items-start gap-2 px-3 py-2 border-b border-[var(--color-border)]
+                    orca-fade-in"
+                >
+                  <span className="shrink-0 text-[var(--color-text-dim)] font-mono text-[12px] pt-[2px]">
+                    ↳
+                  </span>
+                  <div className="flex-1 min-w-0 text-[12.5px] text-[var(--color-text-muted)] leading-snug whitespace-pre-wrap break-words max-h-16 overflow-hidden line-clamp-2">
+                    {quoteDraft}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setQuoteDraft(null)}
+                    className="shrink-0 w-5 h-5 grid place-items-center rounded
+                      text-[var(--color-text-dim)] hover:text-[var(--color-text)]
+                      hover:bg-[var(--color-surface-2)] transition-colors"
+                    aria-label="清除引用"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              <div className="flex items-end gap-2 px-3 py-2">
                 <button
                   type="button"
-                  onClick={() => setQuoteDraft(null)}
-                  className="shrink-0 w-5 h-5 grid place-items-center rounded
+                  onClick={toggleAttachPicker}
+                  className="shrink-0 w-8 h-8 grid place-items-center rounded
                     text-[var(--color-text-dim)] hover:text-[var(--color-text)]
                     hover:bg-[var(--color-surface-2)] transition-colors"
-                  aria-label="清除引用"
+                  aria-label="引用调查"
+                  title="引用调查"
                 >
-                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <path d="M6 6l12 12M18 6L6 18" />
+                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                   </svg>
                 </button>
-              </div>
-            )}
-          <div className="flex items-end gap-2 px-3 py-2">
-            <span className="font-mono text-[var(--color-text-dim)] select-none pt-[7px] pl-0.5">
-              &gt;
-            </span>
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder="问问集群的情况…（Enter 发送 · Shift+Enter 换行）"
-              rows={1}
-              className="flex-1 resize-none bg-transparent text-[0.9375rem] text-[var(--color-text)]
-                placeholder-[var(--color-text-dim)] focus:outline-none py-1.5
-                leading-relaxed max-h-[220px]"
-            />
-            <button
-              type="submit"
-              disabled={loading || !input.trim()}
-              className="shrink-0 h-8 min-w-[64px] px-3 grid place-items-center rounded
-                bg-[var(--color-accent)] text-[var(--color-bg)]
-                hover:bg-[var(--color-accent-hover)]
-                disabled:bg-[var(--color-surface-3)] disabled:text-[var(--color-text-dim)]
-                disabled:cursor-not-allowed transition-colors
-                font-mono text-[11px] uppercase tracking-[0.15em]"
-              aria-label={loading ? '发送中' : '发送'}
-            >
-              {loading ? (
-                <svg
-                  className="w-3.5 h-3.5 animate-spin"
-                  viewBox="0 0 24 24"
-                  fill="none"
+                <span className="font-mono text-[var(--color-text-dim)] select-none pt-[7px] pl-0.5">
+                  &gt;
+                </span>
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onInput={handleInput}
+                  onKeyDown={handleKey}
+                  placeholder="问问集群的情况…（Enter 发送 · Shift+Enter 换行 · @ 引用调查）"
+                  rows={1}
+                  className="flex-1 resize-none bg-transparent text-[0.9375rem] text-[var(--color-text)]
+                    placeholder-[var(--color-text-dim)] focus:outline-none py-1.5
+                    leading-relaxed max-h-[220px]"
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !input.trim()}
+                  className="shrink-0 h-8 min-w-[64px] px-3 grid place-items-center rounded
+                    bg-[var(--color-accent)] text-[var(--color-bg)]
+                    hover:bg-[var(--color-accent-hover)]
+                    disabled:bg-[var(--color-surface-3)] disabled:text-[var(--color-text-dim)]
+                    disabled:cursor-not-allowed transition-colors
+                    font-mono text-[11px] uppercase tracking-[0.15em]"
+                  aria-label={loading ? '发送中' : '发送'}
                 >
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="9"
-                    stroke="currentColor"
-                    strokeOpacity="0.3"
-                    strokeWidth="3"
-                  />
-                  <path
-                    d="M21 12a9 9 0 0 0-9-9"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              ) : (
-                'send'
-              )}
-            </button>
-          </div>
+                  {loading ? (
+                    <svg
+                      className="w-3.5 h-3.5 animate-spin"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="9"
+                        stroke="currentColor"
+                        strokeOpacity="0.3"
+                        strokeWidth="3"
+                      />
+                      <path
+                        d="M21 12a9 9 0 0 0-9-9"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  ) : (
+                    'send'
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
           <div className="mt-2 px-1 text-[12px] text-[var(--color-text-dim)] font-mono">
             Orca 会调用只读工具进行排查·所有操作可在时间线中审计
           </div>
         </form>
       </div>
+
+      {/* @ 触发的 picker 用 fixed anchor 模式，独立渲染在根节点下 */}
+      {pickerOpen && pickerAnchor && (
+        <InvestigationPicker
+          open={pickerOpen}
+          anchor={pickerAnchor}
+          searchQuery={pickerQuery}
+          onSearchQueryChange={setPickerQuery}
+          excludeIds={referencedInvs.map((r) => r.id)}
+          onPick={handlePick}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
     </div>
+  )
+}
+
+function ConvInvChip({
+  inv,
+  onOpen,
+  onRemove,
+}: {
+  inv: Investigation
+  onOpen: () => void
+  onRemove: () => void
+}) {
+  return (
+    <span className="group inline-flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-md
+      border border-[var(--color-border-strong)] bg-[var(--color-surface)]
+      text-[12px] max-w-[320px]">
+      <SeverityDot severity={inv.severity} />
+      <button
+        type="button"
+        onClick={onOpen}
+        className="truncate text-[var(--color-text)] hover:text-[var(--color-accent)] transition-colors"
+        title={inv.title}
+      >
+        {inv.title || '未命名调查'}
+      </button>
+      <StatusBadge status={inv.status} />
+      <button
+        type="button"
+        onClick={onRemove}
+        className="ml-1 w-4 h-4 inline-flex items-center justify-center rounded
+          text-[var(--color-text-dim)] hover:text-[var(--color-danger)]
+          hover:bg-[var(--color-surface-2)] opacity-0 group-hover:opacity-100 transition-opacity"
+        aria-label="解除关联"
+        title="解除关联"
+      >
+        ×
+      </button>
+    </span>
   )
 }
 

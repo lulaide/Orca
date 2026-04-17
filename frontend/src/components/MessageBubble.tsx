@@ -3,19 +3,32 @@ import remarkGfm from 'remark-gfm'
 import type { ChatMessage } from '../api'
 import { ToolCallCard } from './ToolCallCard'
 import { InvestigationRefCard } from './InvestigationRefCard'
+import { InvestigationReferenceCard } from './InvestigationReferenceCard'
 
 // ---- User message ----
 
 export function UserMessage({ message }: { message: ChatMessage }) {
+  const refs = message.metadata?.referenced_investigations ?? []
   return (
-    <div className="flex justify-end mb-6 orca-fade-in">
-      <div
-        className="max-w-[78%] rounded-lg px-4 py-2.5
-          text-[0.9375rem] leading-relaxed
-          bg-[var(--color-user-bubble)] text-[var(--color-user-bubble-text)]"
-      >
-        <p className="whitespace-pre-wrap">{message.content}</p>
-      </div>
+    <div className="flex flex-col items-end mb-6 orca-fade-in">
+      {refs.length > 0 && (
+        <div className="max-w-[78%] w-full flex flex-col gap-1.5 mb-1.5 items-end">
+          {refs.map((r) => (
+            <div key={r.id} className="w-full max-w-[420px]">
+              <InvestigationReferenceCard inv={r} />
+            </div>
+          ))}
+        </div>
+      )}
+      {message.content && (
+        <div
+          className="max-w-[78%] rounded-lg px-4 py-2.5
+            text-[0.9375rem] leading-relaxed
+            bg-[var(--color-user-bubble)] text-[var(--color-user-bubble-text)]"
+        >
+          <p className="whitespace-pre-wrap">{message.content}</p>
+        </div>
+      )}
     </div>
   )
 }

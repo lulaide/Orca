@@ -4,7 +4,7 @@ import { ChatPanel } from './components/ChatPanel'
 import { HomePanel } from './components/HomePanel'
 import { InvestigationListPanel } from './components/InvestigationListPanel'
 import { InvestigationDetailPanel } from './components/InvestigationDetailPanel'
-import type { InvestigationView } from './api'
+import type { InvestigationView, ReferencedInvestigation } from './api'
 
 type Route =
   | { kind: 'home' }
@@ -45,6 +45,8 @@ function App() {
   const [refreshToken, setRefreshToken] = useState(0)
   // 首页输入框提交的首条消息，暂存到 ChatPanel 拿到之后自动发
   const [pendingInitialMessage, setPendingInitialMessage] = useState<string | null>(null)
+  // 首页输入框提交时附带的引用，与 pendingInitialMessage 配对
+  const [pendingInitialRefs, setPendingInitialRefs] = useState<ReferencedInvestigation[]>([])
   // sidebar "+ 新对话" 点击时递增，HomePanel 据此聚焦输入框
   const [homeFocusToken, setHomeFocusToken] = useState(0)
 
@@ -75,10 +77,11 @@ function App() {
   }
 
   // Home 输入框提交 → 打开空 chat 面板 + 自动发首条
-  const handleHomeSubmit = (text: string) => {
+  const handleHomeSubmit = (text: string, refs: ReferencedInvestigation[]) => {
     const t = text.trim()
     if (!t) return
     setPendingInitialMessage(t)
+    setPendingInitialRefs(refs)
     setRoute({ kind: 'chat', conversationId: null })
     // 保持 URL 为 /，等 conversation_id 回来后在 onConversationCreated 里 replaceState
   }
@@ -113,7 +116,11 @@ function App() {
             onConversationCreated={handleConversationCreated}
             onConversationUpdated={bumpRefresh}
             initialMessage={pendingInitialMessage}
-            onInitialMessageConsumed={() => setPendingInitialMessage(null)}
+            initialReferencedInvestigations={pendingInitialRefs}
+            onInitialMessageConsumed={() => {
+              setPendingInitialMessage(null)
+              setPendingInitialRefs([])
+            }}
           />
         )}
         {route.kind === 'investigation-list' && (

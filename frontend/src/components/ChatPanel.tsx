@@ -43,6 +43,8 @@ interface Props {
   onConversationUpdated: () => void
   /** 由 HomePanel 提交的首条消息。非空时挂载后自动发送一次。 */
   initialMessage?: string | null
+  /** 与 initialMessage 配对的初始引用列表。 */
+  initialReferencedInvestigations?: ReferencedInvestigation[]
   /** 自动发送后通知父组件清空 pendingInitialMessage。 */
   onInitialMessageConsumed?: () => void
 }
@@ -79,6 +81,7 @@ export function ChatPanel({
   onConversationCreated,
   onConversationUpdated,
   initialMessage,
+  initialReferencedInvestigations,
   onInitialMessageConsumed,
 }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -160,13 +163,14 @@ export function ChatPanel({
 
   const turns = useMemo(() => groupIntoTurns(messages), [messages])
 
-  const send = async (text: string) => {
+  const send = async (text: string, refOverride?: ReferencedInvestigation[]) => {
     if (!text || loading) return
     const quoted = quoteDraft
       ? quoteDraft.split(/\r?\n/).map((l) => `> ${l}`).join('\n') + '\n\n'
       : ''
     const finalText = quoted + text
-    const refIds = referencedInvs.map((r) => r.id)
+    const refs = refOverride ?? referencedInvs
+    const refIds = refs.map((r) => r.id)
     setInput('')
     setQuoteDraft(null)
     setReferencedInvs([])
@@ -234,8 +238,11 @@ export function ChatPanel({
     if (initialSentRef.current) return
     if (conversationId) return
     initialSentRef.current = true
+    const refs = initialReferencedInvestigations ?? []
+    // 让 UI 能在发送瞬间显示 chip（虽然 send 会立即清空，但 loading 期间 UserMessage 会接手渲染）
+    if (refs.length > 0) setReferencedInvs(refs)
     onInitialMessageConsumed?.()
-    void send(initialMessage)
+    void send(initialMessage, refs)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialMessage])
 
@@ -363,7 +370,9 @@ export function ChatPanel({
     }
   }
 
-  const showEmpty = messages.length === 0 && !loading
+  // 有待自动发送的首条消息时不渲染 EmptyState，避免挂载瞬间闪出引导卡片
+  const hasPendingInitial = !!initialMessage && !initialSentRef.current
+  const showEmpty = messages.length === 0 && !loading && !hasPendingInitial
   const msgCount = messages.filter((m) => m.role !== 'system').length
 
   return (

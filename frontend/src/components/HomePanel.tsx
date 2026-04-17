@@ -3,15 +3,18 @@ import {
   getStatus,
   listInvestigations,
   type Investigation,
+  type ReferencedInvestigation,
   type StatusResponse,
 } from '../api'
 import { navigate } from '../navigate'
 import { SeverityDot, StatusBadge } from './investigationUI'
 import { formatRelativeTime } from '../timeFormat'
 import { ClusterMetricsCards } from './ClusterMetricsCards'
+import { InvestigationPicker } from './InvestigationPicker'
+import { InvestigationReferenceDraftChip } from './InvestigationReferenceCard'
 
 interface Props {
-  onSubmit: (text: string) => void
+  onSubmit: (text: string, refs: ReferencedInvestigation[]) => void
   focusSignal?: number
 }
 
@@ -30,8 +33,17 @@ function todayStr(now = new Date()): string {
   return now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
 }
 
+function toRefSummary(inv: Investigation): ReferencedInvestigation {
+  return { id: inv.id, title: inv.title, severity: inv.severity, status: inv.status }
+}
+
 export function HomePanel({ onSubmit, focusSignal }: Props) {
   const [input, setInput] = useState('')
+  const [referencedInvs, setReferencedInvs] = useState<ReferencedInvestigation[]>([])
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerQuery, setPickerQuery] = useState('')
+  const [pickerAnchor, setPickerAnchor] = useState<{ x: number; y: number } | undefined>(undefined)
+  const atTokenRef = useRef<{ start: number; end: number } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // 挂载时聚焦；focusSignal 变化时重新聚焦（sidebar "+ 新对话" 触发）
@@ -47,22 +59,80 @@ export function HomePanel({ onSubmit, focusSignal }: Props) {
     ta.style.height = Math.min(ta.scrollHeight, 180) + 'px'
   }, [input])
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault()
+  const submit = () => {
     const text = input.trim()
     if (!text) return
+    const refs = referencedInvs
     setInput('')
-    onSubmit(text)
+    setReferencedInvs([])
+    onSubmit(text, refs)
+  }
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    submit()
   }
 
   const handleKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      const text = input.trim()
-      if (!text) return
-      setInput('')
-      onSubmit(text)
+      submit()
     }
+  }
+
+  // @ 触发 picker：扫描 cursor 前最近未结束的 @token
+  const detectAtToken = () => {
+    const ta = textareaRef.current
+    if (!ta) return
+    const pos = ta.selectionStart ?? 0
+    const before = ta.value.slice(0, pos)
+    const atIdx = before.lastIndexOf('@')
+    if (atIdx < 0) {
+      if (pickerAnchor) setPickerOpen(false)
+      return
+    }
+    const token = before.slice(atIdx + 1)
+    if (/\s/.test(token)) {
+      if (pickerAnchor) setPickerOpen(false)
+      return
+    }
+    atTokenRef.current = { start: atIdx, end: pos }
+    setPickerQuery(token)
+    const rect = ta.getBoundingClientRect()
+    setPickerAnchor({ x: Math.max(8, rect.left + 12), y: rect.top - 8 })
+    setPickerOpen(true)
+  }
+
+  const handleInput = () => {
+    detectAtToken()
+  }
+
+  const toggleAttachPicker = () => {
+    atTokenRef.current = null
+    setPickerAnchor(undefined)
+    setPickerQuery('')
+    setPickerOpen((v) => !v)
+  }
+
+  const handlePick = (inv: Investigation) => {
+    const ref = toRefSummary(inv)
+    setReferencedInvs((prev) => (prev.some((r) => r.id === ref.id) ? prev : [...prev, ref]))
+    const tok = atTokenRef.current
+    if (tok) {
+      const ta = textareaRef.current
+      const v = ta?.value ?? input
+      const next = v.slice(0, tok.start) + v.slice(tok.end)
+      setInput(next)
+      setTimeout(() => {
+        if (ta) {
+          ta.focus()
+          ta.selectionStart = ta.selectionEnd = tok.start
+        }
+      }, 0)
+    }
+    atTokenRef.current = null
+    setPickerOpen(false)
+    setPickerQuery('')
   }
 
   return (
@@ -83,40 +153,81 @@ export function HomePanel({ onSubmit, focusSignal }: Props) {
 
         {/* Prominent input */}
         <form onSubmit={handleSubmit} className="orca-fade-in">
-          <div
-            className="rounded-xl border border-[var(--color-border-strong)]
-              bg-[var(--color-surface)]
-              focus-within:border-[var(--color-text)]
-              transition-colors shadow-sm"
-          >
-            <div className="flex items-start gap-3 px-4 py-3">
-              <span className="font-mono text-[var(--color-accent)] select-none pt-[9px] text-[15px]">
-                &gt;
-              </span>
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKey}
-                placeholder="问问集群的情况…（Enter 发送 · Shift+Enter 换行）"
-                rows={1}
-                className="flex-1 resize-none bg-transparent text-[16px] leading-[1.55]
-                  text-[var(--color-text)] placeholder-[var(--color-text-dim)]
-                  focus:outline-none py-2 min-h-[28px] max-h-[180px]"
+          <div className="relative">
+            {/* 挂在输入框上方的 attach 模式 picker */}
+            {pickerOpen && !pickerAnchor && (
+              <InvestigationPicker
+                open={pickerOpen}
+                searchQuery={pickerQuery}
+                onSearchQueryChange={setPickerQuery}
+                excludeIds={referencedInvs.map((r) => r.id)}
+                onPick={handlePick}
+                onClose={() => setPickerOpen(false)}
               />
-              <button
-                type="submit"
-                disabled={!input.trim()}
-                className="shrink-0 h-9 min-w-[72px] px-3 grid place-items-center rounded
-                  bg-[var(--color-accent)] text-[var(--color-bg)]
-                  hover:bg-[var(--color-accent-hover)]
-                  disabled:bg-[var(--color-surface-3)] disabled:text-[var(--color-text-dim)]
-                  disabled:cursor-not-allowed transition-colors
-                  font-mono text-[11px] uppercase tracking-[0.15em]"
-                aria-label="发送"
-              >
-                send
-              </button>
+            )}
+            <div
+              className="rounded-xl border border-[var(--color-border-strong)]
+                bg-[var(--color-surface)]
+                focus-within:border-[var(--color-text)]
+                transition-colors shadow-sm"
+            >
+              {/* 草稿引用 chips */}
+              {referencedInvs.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 px-4 pt-3 pb-2 border-b border-[var(--color-border)]">
+                  {referencedInvs.map((r) => (
+                    <InvestigationReferenceDraftChip
+                      key={r.id}
+                      inv={r}
+                      onRemove={() =>
+                        setReferencedInvs((prev) => prev.filter((x) => x.id !== r.id))
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+              <div className="flex items-start gap-2 px-3 py-3">
+                <button
+                  type="button"
+                  onClick={toggleAttachPicker}
+                  className="shrink-0 w-9 h-9 mt-0.5 grid place-items-center rounded
+                    text-[var(--color-text-dim)] hover:text-[var(--color-text)]
+                    hover:bg-[var(--color-surface-2)] transition-colors"
+                  aria-label="引用调查"
+                  title="引用调查"
+                >
+                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
+                <span className="font-mono text-[var(--color-accent)] select-none pt-[9px] text-[15px]">
+                  &gt;
+                </span>
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onInput={handleInput}
+                  onKeyDown={handleKey}
+                  placeholder="问问集群的情况…（Enter 发送 · Shift+Enter 换行 · @ 引用调查）"
+                  rows={1}
+                  className="flex-1 resize-none bg-transparent text-[16px] leading-[1.55]
+                    text-[var(--color-text)] placeholder-[var(--color-text-dim)]
+                    focus:outline-none py-2 min-h-[28px] max-h-[180px]"
+                />
+                <button
+                  type="submit"
+                  disabled={!input.trim()}
+                  className="shrink-0 h-9 min-w-[72px] px-3 grid place-items-center rounded
+                    bg-[var(--color-accent)] text-[var(--color-bg)]
+                    hover:bg-[var(--color-accent-hover)]
+                    disabled:bg-[var(--color-surface-3)] disabled:text-[var(--color-text-dim)]
+                    disabled:cursor-not-allowed transition-colors
+                    font-mono text-[11px] uppercase tracking-[0.15em]"
+                  aria-label="发送"
+                >
+                  send
+                </button>
+              </div>
             </div>
           </div>
           <div className="mt-2 px-1 text-[12px] text-[var(--color-text-dim)] font-mono">
@@ -135,6 +246,19 @@ export function HomePanel({ onSubmit, focusSignal }: Props) {
           <PendingInvestigationsPanel />
         </div>
       </div>
+
+      {/* @ 触发的 picker 用 fixed anchor 模式 */}
+      {pickerOpen && pickerAnchor && (
+        <InvestigationPicker
+          open={pickerOpen}
+          anchor={pickerAnchor}
+          searchQuery={pickerQuery}
+          onSearchQueryChange={setPickerQuery}
+          excludeIds={referencedInvs.map((r) => r.id)}
+          onPick={handlePick}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
     </div>
   )
 }

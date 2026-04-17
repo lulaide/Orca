@@ -7,6 +7,7 @@ import {
   type StatusResponse,
 } from '../api'
 import { applyTheme, type Theme } from '../theme'
+import { ConfirmDialog } from './ConfirmDialog'
 
 interface Props {
   activeId: string | null
@@ -39,6 +40,7 @@ export function Sidebar({ activeId, onSelect, refreshToken }: Props) {
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [theme, setTheme] = useState<Theme>(currentTheme())
+  const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null)
 
   useEffect(() => {
     listConversations().then(setConvs).catch(console.error)
@@ -51,9 +53,15 @@ export function Sidebar({ activeId, onSelect, refreshToken }: Props) {
     return () => clearInterval(t)
   }, [])
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const openDelete = (e: React.MouseEvent, conv: Conversation) => {
     e.stopPropagation()
-    if (!confirm('删除这个对话？')) return
+    setPendingDelete(conv)
+  }
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    const id = pendingDelete.id
+    setPendingDelete(null)
     try {
       await deleteConversation(id)
       setConvs((prev) => prev.filter((c) => c.id !== id))
@@ -73,6 +81,18 @@ export function Sidebar({ activeId, onSelect, refreshToken }: Props) {
   const kubeOk = !!status?.kubernetes.connected
 
   return (
+    <>
+    <ConfirmDialog
+      open={!!pendingDelete}
+      tag="rm"
+      danger
+      title="删除此对话？"
+      description="会永久移除对话记录与全部消息，无法恢复。"
+      subject={pendingDelete?.title || '未命名'}
+      confirmLabel="删除"
+      onConfirm={confirmDelete}
+      onCancel={() => setPendingDelete(null)}
+    />
     <aside className="w-72 shrink-0 flex flex-col h-full bg-[var(--color-surface)] border-r border-[var(--color-border)]">
       {/* Brand */}
       <div className="px-5 pt-6 pb-4">
@@ -138,7 +158,7 @@ export function Sidebar({ activeId, onSelect, refreshToken }: Props) {
               {isHovered ? (
                 <button
                   type="button"
-                  onClick={(e) => handleDelete(e, c.id)}
+                  onClick={(e) => openDelete(e, c)}
                   className="shrink-0 w-5 h-5 grid place-items-center rounded text-[var(--color-text-dim)] hover:text-[var(--color-danger)]"
                   aria-label="删除"
                 >
@@ -203,6 +223,7 @@ export function Sidebar({ activeId, onSelect, refreshToken }: Props) {
         </div>
       </div>
     </aside>
+    </>
   )
 }
 

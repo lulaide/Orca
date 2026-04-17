@@ -24,6 +24,9 @@ type Conversation struct {
 //   - ToolCalls   仅 assistant 有，JSONB 存 []schema.ToolCall
 //   - ToolCallID  仅 role=tool 有，指回 assistant.tool_calls[i].id
 //   - ToolName    仅 role=tool 有，工具名称（便于前端展示）
+//   - Metadata    消息级扩展 JSON。当前用法:
+//                   { "referenced_investigations": [{id,title,severity,status}, ...] }
+//                 Agent 或前端可以往这里加结构化标注，而不用污染 Content 文本。
 type Message struct {
 	ID             string         `gorm:"primaryKey" json:"id"`
 	ConversationID string         `gorm:"index" json:"conversation_id"`
@@ -32,6 +35,7 @@ type Message struct {
 	ToolCalls      datatypes.JSON `gorm:"type:jsonb" json:"tool_calls,omitempty"`
 	ToolCallID     string         `gorm:"index" json:"tool_call_id,omitempty"`
 	ToolName       string         `json:"tool_name,omitempty"`
+	Metadata       datatypes.JSON `gorm:"type:jsonb" json:"metadata,omitempty"`
 	CreatedAt      time.Time      `json:"created_at"`
 }
 

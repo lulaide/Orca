@@ -138,11 +138,48 @@ func (d *Deps) handleDeleteConversation(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// ---- /api/conversations/:id/investigations ----
+
+func (d *Deps) handleListConversationInvestigations(c *gin.Context) {
+	convID := c.Param("id")
+	if _, err := core.GetConversation(d.DB, convID); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "conversation not found"})
+		return
+	}
+	invs, err := core.ListInvestigationsByConversation(d.DB, convID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, invs)
+}
+
+func (d *Deps) handleUnlinkConversationInvestigation(c *gin.Context) {
+	convID := c.Param("id")
+	invID := c.Param("inv_id")
+	if err := d.DB.Where("conversation_id = ? AND investigation_id = ?", convID, invID).
+		Delete(&core.ConversationInvestigation{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // ---- /api/chat ----
 
 type chatRequest struct {
-	Message        string `json:"message" binding:"required"`
-	ConversationID string `json:"conversation_id"` // 可选；空则新建对话
+	Message                    string   `json:"message" binding:"required"`
+	ConversationID             string   `json:"conversation_id"`              // 可选；空则新建对话
+	ReferencedInvestigationIDs []string `json:"referenced_investigation_ids"` // 可选；用户通过 picker 引用的 investigation
+}
+
+// referencedInvestigation 是写入 message metadata 的精简引用记录，
+// 前端 UserMessage 据此渲染 RefCard，不必再次拉 detail。
+type referencedInvestigation struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Severity string `json:"severity"`
+	Status   string `json:"status"`
 }
 
 const chatSystemPrompt = `You are Orca, an AI SRE assistant for Kubernetes clusters. Follow this diagnostic process when investigating issues:
@@ -244,8 +281,37 @@ func (d *Deps) handleChat(c *gin.Context) {
 		return nil
 	}
 
-	// 4. 保存 + 推送用户消息
-	userRow, err := core.SaveEinoMessage(d.DB, conv.ID, schema.UserMessage(req.Message))
+	// 4. 解析引用的 investigation（若有），去重 + resolve 每个 id
+	var refs []referencedInvestigation
+	if len(req.ReferencedInvestigationIDs) > 0 {
+		seen := map[string]bool{}
+		for _, id := range req.ReferencedInvestigationIDs {
+			if id == "" || seen[id] {
+				continue
+			}
+			seen[id] = true
+			inv, err := core.GetInvestigation(d.DB, id)
+			if err != nil {
+				// 忽略不存在的 id，不阻塞消息发送
+				continue
+			}
+			refs = append(refs, referencedInvestigation{
+				ID:       inv.ID,
+				Title:    inv.Title,
+				Severity: inv.Severity,
+				Status:   inv.Status,
+			})
+			// 同步写入对话-调查关联表（幂等）
+			_ = core.AppendInvestigationToConversation(d.DB, conv.ID, inv.ID)
+		}
+	}
+	var metadata map[string]any
+	if len(refs) > 0 {
+		metadata = map[string]any{"referenced_investigations": refs}
+	}
+
+	// 5. 保存 + 推送用户消息
+	userRow, err := core.SaveEinoMessageWithMetadata(d.DB, conv.ID, schema.UserMessage(req.Message), metadata)
 	if err != nil {
 		_ = emit("error", gin.H{"error": "save user message: " + err.Error()})
 		return

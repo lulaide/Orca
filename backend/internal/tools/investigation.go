@@ -19,6 +19,8 @@ var DB *gorm.DB
 // RegisterInvestigationTools 注册 Investigation 相关的 LLM 工具。
 // 不含归档/删除——归档由人工决定，避免 LLM 幻觉误操作。
 func RegisterInvestigationTools(reg *Registry) {
+	reg.Register(listInvestigationsInfo(), handleListInvestigations)
+	reg.Register(getInvestigationInfo(), handleGetInvestigation)
 	reg.Register(createInvestigationInfo(), handleCreateInvestigation)
 	reg.Register(addInvestigationEntryInfo(), handleAddInvestigationEntry)
 	reg.Register(resolveInvestigationInfo(), handleResolveInvestigation)
@@ -29,6 +31,223 @@ func investigationDB() (*gorm.DB, error) {
 		return nil, errors.New("database is not configured")
 	}
 	return DB, nil
+}
+
+// ---- list_investigations ----
+
+type listInvestigationsArgs struct {
+	View     string `json:"view"`
+	Severity string `json:"severity"`
+	Limit    int    `json:"limit"`
+}
+
+type investigationBrief struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Status    string `json:"status"`
+	Severity  string `json:"severity"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+func listInvestigationsInfo() *schema.ToolInfo {
+	return &schema.ToolInfo{
+		Name: "list_investigations",
+		Desc: "List existing Investigations (tickets). Use to show the user what's being tracked, or to find an Investigation by keyword before drilling in with get_investigation. Returns brief records ordered by most recently updated.",
+		ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
+			"view": {
+				Type:     schema.String,
+				Desc:     "Filter scope: active (open+investigating, default), resolved, archived, all.",
+				Required: false,
+				Enum:     []string{"active", "resolved", "archived", "all"},
+			},
+			"severity": {
+				Type:     schema.String,
+				Desc:     "Optional severity filter: critical | warning | info.",
+				Required: false,
+				Enum:     []string{"critical", "warning", "info"},
+			},
+			"limit": {
+				Type:     schema.Integer,
+				Desc:     "Max rows to return (default 20, max 100).",
+				Required: false,
+			},
+		}),
+	}
+}
+
+func handleListInvestigations(ctx context.Context, args string) (string, error) {
+	var a listInvestigationsArgs
+	if args != "" && args != "{}" {
+		if err := json.Unmarshal([]byte(args), &a); err != nil {
+			return "", fmt.Errorf("invalid args: %w", err)
+		}
+	}
+	db, err := investigationDB()
+	if err != nil {
+		return "", err
+	}
+
+	view := core.ViewActive
+	switch a.View {
+	case "resolved":
+		view = core.ViewResolved
+	case "archived":
+		view = core.ViewArchived
+	case "all":
+		view = core.ViewAll
+	}
+
+	limit := a.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	rows, err := core.ListInvestigations(db, core.ListInvestigationsOpts{
+		View:  view,
+		Limit: limit,
+	})
+	if err != nil {
+		return "", fmt.Errorf("list investigations: %w", err)
+	}
+
+	out := make([]investigationBrief, 0, len(rows))
+	for _, r := range rows {
+		if a.Severity != "" && r.Severity != a.Severity {
+			continue
+		}
+		out = append(out, investigationBrief{
+			ID:        r.ID,
+			Title:     r.Title,
+			Status:    r.Status,
+			Severity:  r.Severity,
+			UpdatedAt: r.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		})
+	}
+	b, _ := json.Marshal(out)
+	return string(b), nil
+}
+
+// ---- get_investigation ----
+
+type getInvestigationArgs struct {
+	ID string `json:"id"`
+}
+
+type investigationDetail struct {
+	ID              string   `json:"id"`
+	Title           string   `json:"title"`
+	Description     string   `json:"description,omitempty"`
+	Status          string   `json:"status"`
+	Severity        string   `json:"severity"`
+	Source          string   `json:"source,omitempty"`
+	RelatedServices []string `json:"related_services,omitempty"`
+	RootCause       string   `json:"root_cause,omitempty"`
+	Solution        string   `json:"solution,omitempty"`
+	CreatedAt       string   `json:"created_at"`
+	UpdatedAt       string   `json:"updated_at"`
+	ResolvedAt      string   `json:"resolved_at,omitempty"`
+	Archived        bool     `json:"archived,omitempty"`
+	Entries         []entryBrief `json:"entries"`
+	EntriesTrimmed  bool     `json:"entries_trimmed,omitempty"`
+}
+
+type entryBrief struct {
+	Type      string `json:"type"`
+	Author    string `json:"author"`
+	Content   string `json:"content"`
+	CreatedAt string `json:"created_at"`
+}
+
+func getInvestigationInfo() *schema.ToolInfo {
+	return &schema.ToolInfo{
+		Name: "get_investigation",
+		Desc: "Fetch full details of one Investigation by ID, including the latest timeline entries (discoveries/actions/notes/resolution). Use this when the user asks about a specific Investigation, or after list_investigations narrowed down the target.",
+		ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
+			"id": {
+				Type:     schema.String,
+				Desc:     "The Investigation ID (uuid).",
+				Required: true,
+			},
+		}),
+	}
+}
+
+func handleGetInvestigation(ctx context.Context, args string) (string, error) {
+	var a getInvestigationArgs
+	if err := json.Unmarshal([]byte(args), &a); err != nil {
+		return "", fmt.Errorf("invalid args: %w", err)
+	}
+	if a.ID == "" {
+		return "", errors.New("'id' is required")
+	}
+	db, err := investigationDB()
+	if err != nil {
+		return "", err
+	}
+
+	inv, err := core.GetInvestigation(db, a.ID)
+	if err != nil {
+		return "", fmt.Errorf("get investigation: %w", err)
+	}
+	entries, err := core.ListEntries(db, a.ID)
+	if err != nil {
+		return "", fmt.Errorf("list entries: %w", err)
+	}
+
+	// 取最近 20 条（entries 是升序，按尾部截断）
+	const maxEntries = 20
+	trimmed := false
+	if len(entries) > maxEntries {
+		entries = entries[len(entries)-maxEntries:]
+		trimmed = true
+	}
+
+	briefs := make([]entryBrief, 0, len(entries))
+	for _, e := range entries {
+		briefs = append(briefs, entryBrief{
+			Type:      e.Type,
+			Author:    e.Author,
+			Content:   e.Content,
+			CreatedAt: e.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		})
+	}
+
+	var related []string
+	if len(inv.RelatedServices) > 0 {
+		_ = json.Unmarshal(inv.RelatedServices, &related)
+	}
+
+	detail := investigationDetail{
+		ID:              inv.ID,
+		Title:           inv.Title,
+		Description:     inv.Description,
+		Status:          inv.Status,
+		Severity:        inv.Severity,
+		Source:          inv.Source,
+		RelatedServices: related,
+		CreatedAt:       inv.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:       inv.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		Entries:         briefs,
+		EntriesTrimmed:  trimmed,
+	}
+	if inv.RootCause != nil {
+		detail.RootCause = *inv.RootCause
+	}
+	if inv.Solution != nil {
+		detail.Solution = *inv.Solution
+	}
+	if inv.ResolvedAt != nil {
+		detail.ResolvedAt = inv.ResolvedAt.Format("2006-01-02T15:04:05Z07:00")
+	}
+	if inv.ArchivedAt != nil {
+		detail.Archived = true
+	}
+
+	b, _ := json.Marshal(detail)
+	return string(b), nil
 }
 
 // ---- create_investigation ----

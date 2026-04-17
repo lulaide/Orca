@@ -82,6 +82,21 @@ func DeleteConversation(db *gorm.DB, id string) error {
 // SaveEinoMessage 把一个 eino schema.Message 拆成 DB 行存入 messages 表。
 // 返回保存后的行（含 ID / CreatedAt）。
 func SaveEinoMessage(db *gorm.DB, convID string, m *schema.Message) (*Message, error) {
+	return SaveEinoMessageWithMetadata(db, convID, m, nil)
+}
+
+// SaveEinoMessageWithMetadata 与 SaveEinoMessage 同，但允许附加一个 metadata map，
+// 以 JSONB 存到 messages.metadata。当前使用场景:
+//
+//	{ "referenced_investigations": [{id,title,severity,status}, ...] }
+//
+// 传 nil 或空 map 时不写 metadata。
+func SaveEinoMessageWithMetadata(
+	db *gorm.DB,
+	convID string,
+	m *schema.Message,
+	metadata map[string]any,
+) (*Message, error) {
 	row := &Message{
 		ID:             uuid.NewString(),
 		ConversationID: convID,
@@ -97,6 +112,13 @@ func SaveEinoMessage(db *gorm.DB, convID string, m *schema.Message) (*Message, e
 			return nil, err
 		}
 		row.ToolCalls = datatypes.JSON(b)
+	}
+	if len(metadata) > 0 {
+		b, err := json.Marshal(metadata)
+		if err != nil {
+			return nil, err
+		}
+		row.Metadata = datatypes.JSON(b)
 	}
 	if err := db.Create(row).Error; err != nil {
 		return nil, err

@@ -192,6 +192,8 @@ export function ChatPanel({
             // 刷新顶部 chip bar（Agent 可能调了 create_investigation）
             const cid = conversationId ?? createdId
             if (cid) refreshConvInvs(cid)
+            // 后端会异步用 LLM 生成更好的标题,给它几秒时间后再刷一次侧边栏
+            setTimeout(() => onConversationUpdated(), 3500)
           } else if (ev.type === 'error') {
             setMessages((prev) => [
               ...prev,

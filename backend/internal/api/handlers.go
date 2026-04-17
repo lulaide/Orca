@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/cloudwego/eino/schema"
 	"github.com/gin-gonic/gin"
@@ -335,13 +337,16 @@ func (d *Deps) handleChat(c *gin.Context) {
 		return // 客户端断开,放弃继续
 	}
 
-	// 首条用户消息时自动填充标题（取首行 + 截断）
-	if conv.Title == "" {
-		title := req.Message
-		if i := indexNewline(title); i >= 0 {
-			title = title[:i]
+	// 首条用户消息时自动填充标题。
+	// 这里先用 req.Message 首行做兜底(LLM 失败或极慢时有个东西显示),
+	// agentic loop 结束后再异步用 LLM 摘要覆盖成更贴切的短标题。
+	titleNeedsSummary := conv.Title == ""
+	if titleNeedsSummary {
+		fallback := req.Message
+		if i := indexNewline(fallback); i >= 0 {
+			fallback = fallback[:i]
 		}
-		_ = core.SetConversationTitle(d.DB, conv.ID, title)
+		_ = core.SetConversationTitle(d.DB, conv.ID, fallback)
 	}
 	_ = core.TouchConversation(d.DB, conv.ID)
 
@@ -383,4 +388,24 @@ func (d *Deps) handleChat(c *gin.Context) {
 		"conversation_id": conv.ID,
 		"iterations":      result.Iterations,
 	})
+
+	// 7. 首轮结束后异步生成更贴切的标题,不阻塞请求返回。
+	// 用独立 context,避免请求 ctx 在 SSE 断开时被 cancel。
+	if titleNeedsSummary && result != nil && result.Final != nil {
+		convID := conv.ID
+		userMsg := req.Message
+		assistantMsg := result.Final.Content
+		go func() {
+			bg, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			title, err := d.LLM.SummarizeTitle(bg, userMsg, assistantMsg)
+			if err != nil {
+				log.Printf("chat: summarize title failed for %s: %v", convID, err)
+				return
+			}
+			if err := core.SetConversationTitle(d.DB, convID, title); err != nil {
+				log.Printf("chat: set title failed for %s: %v", convID, err)
+			}
+		}()
+	}
 }

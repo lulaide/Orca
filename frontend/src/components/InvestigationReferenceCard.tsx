@@ -51,7 +51,7 @@ export function InvestigationReferenceDraftChip({
         onClick={onRemove}
         className="ml-1 w-4 h-4 inline-flex items-center justify-center rounded
           text-[var(--color-text-dim)] hover:text-[var(--color-text)]
-          hover:bg-[var(--color-surface-hover)]"
+          hover:bg-[var(--color-surface-2)]"
         aria-label="移除引用"
       >
         ×

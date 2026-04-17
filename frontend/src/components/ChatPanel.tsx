@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, type FormEvent } from 'react'
-import { sendMessage, type ChatMessage } from '../api'
+import { streamChat, type ChatMessage } from '../api'
 import { MessageBubble } from './MessageBubble'
 
 export function ChatPanel() {
@@ -8,6 +8,7 @@ export function ChatPanel() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -26,6 +27,7 @@ export function ChatPanel() {
 
   const handleNewChat = () => {
     if (loading) return
+    abortRef.current?.abort()
     setConversationId(null)
     setMessages([])
   }
@@ -35,36 +37,53 @@ export function ChatPanel() {
     const text = input.trim()
     if (!text || loading) return
 
-    // 乐观插入用户消息（用临时 id，后端返回后不再 reconciliate，留着就行）
-    const tempUser: ChatMessage = {
-      id: `temp-${Date.now()}`,
-      conversation_id: conversationId ?? '',
-      role: 'user',
-      content: text,
-      created_at: new Date().toISOString(),
-    }
     setInput('')
-    setMessages((prev) => [...prev, tempUser])
     setLoading(true)
 
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
+
     try {
-      const res = await sendMessage(text, conversationId)
-      setConversationId(res.conversation_id)
-      setMessages((prev) => [...prev, ...res.new_messages])
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Unknown error'
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `err-${Date.now()}`,
-          conversation_id: conversationId ?? '',
-          role: 'assistant',
-          content: `Error: ${msg}`,
-          created_at: new Date().toISOString(),
+      await streamChat(text, conversationId, {
+        signal: ctrl.signal,
+        onEvent: (ev) => {
+          if (ev.type === 'message') {
+            setMessages((prev) => [...prev, ev.message])
+          } else if (ev.type === 'done') {
+            setConversationId(ev.conversation_id)
+          } else if (ev.type === 'error') {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `err-${Date.now()}`,
+                conversation_id: conversationId ?? '',
+                role: 'assistant',
+                content: `Error: ${ev.error}`,
+                created_at: new Date().toISOString(),
+              },
+            ])
+          }
         },
-      ])
+      })
+    } catch (err: unknown) {
+      if ((err as { name?: string })?.name === 'AbortError') {
+        // 用户主动取消，不作为错误提示
+      } else {
+        const msg = err instanceof Error ? err.message : 'Unknown error'
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `err-${Date.now()}`,
+            conversation_id: conversationId ?? '',
+            role: 'assistant',
+            content: `Error: ${msg}`,
+            created_at: new Date().toISOString(),
+          },
+        ])
+      }
     } finally {
       setLoading(false)
+      if (abortRef.current === ctrl) abortRef.current = null
     }
   }
 

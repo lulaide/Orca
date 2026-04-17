@@ -30,6 +30,10 @@ type RunInput struct {
 	// History 可选的已有对话历史(不含当前这次 UserMessage)。
 	// 用户追问时传入,让 LLM 看到完整上下文。
 	History []*schema.Message
+	// OnMessage 每产生一条新消息时同步回调(assistant 决策 / tool 结果 / 最终文本)。
+	// 用于 SSE 推流场景。调用方应该快速返回,避免阻塞 Agentic Loop。
+	// nil 时不触发。
+	OnMessage func(*schema.Message)
 }
 
 // RunResult 是一次推理的输出。
@@ -94,6 +98,9 @@ func (e *Engine) Run(ctx context.Context, in RunInput) (*RunResult, error) {
 		// 情况 1: 纯文本回复 → 完成。
 		if len(resp.ToolCalls) == 0 {
 			added = append(added, resp)
+			if in.OnMessage != nil {
+				in.OnMessage(resp)
+			}
 			return &RunResult{
 				Final:      resp,
 				Messages:   added,
@@ -105,6 +112,9 @@ func (e *Engine) Run(ctx context.Context, in RunInput) (*RunResult, error) {
 		log.Printf("Agentic Loop (iter %d): %d tool call(s) requested", i+1, len(resp.ToolCalls))
 		messages = append(messages, resp)
 		added = append(added, resp)
+		if in.OnMessage != nil {
+			in.OnMessage(resp)
+		}
 
 		for _, call := range resp.ToolCalls {
 			toolName := call.Function.Name
@@ -118,9 +128,19 @@ func (e *Engine) Run(ctx context.Context, in RunInput) (*RunResult, error) {
 				log.Printf("    ! %s", result)
 			}
 
-			toolMsg := schema.ToolMessage(result, call.ID)
+			// 手动构造 tool 消息,带上 ToolName 方便前端审计展示
+			// (schema.ToolMessage helper 只填 Content + ToolCallID,不填 ToolName)。
+			toolMsg := &schema.Message{
+				Role:       schema.Tool,
+				Content:    result,
+				ToolCallID: call.ID,
+				ToolName:   toolName,
+			}
 			messages = append(messages, toolMsg)
 			added = append(added, toolMsg)
+			if in.OnMessage != nil {
+				in.OnMessage(toolMsg)
+			}
 		}
 	}
 

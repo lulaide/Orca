@@ -39,34 +39,100 @@ export interface ChatMessage {
   created_at: string
 }
 
-export interface ChatResponse {
-  conversation_id: string
-  reply: string
-  iterations: number
-  new_messages: ChatMessage[]
-}
-
 export async function getStatus(): Promise<StatusResponse> {
   const res = await fetch('/api/status')
   if (!res.ok) throw new Error(`status: ${res.status}`)
   return res.json()
 }
 
-export async function sendMessage(
+// ---- SSE streaming chat ----
+
+export type ChatStreamEvent =
+  | { type: 'message'; message: ChatMessage }
+  | { type: 'done'; conversation_id: string; iterations: number }
+  | { type: 'error'; error: string }
+
+export interface StreamChatHandlers {
+  onEvent: (ev: ChatStreamEvent) => void
+  signal?: AbortSignal
+}
+
+/**
+ * streamChat 通过 SSE 消费 /api/chat。
+ * 后端帧格式: `event: <name>\ndata: <json>\n\n`
+ * 可能的 event: "message" | "done" | "error"
+ */
+export async function streamChat(
   message: string,
   conversationId: string | null,
-): Promise<ChatResponse> {
+  { onEvent, signal }: StreamChatHandlers,
+): Promise<void> {
   const res = await fetch('/api/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify({
       message,
       conversation_id: conversationId ?? '',
     }),
+    signal,
   })
-  if (!res.ok) {
+  if (!res.ok || !res.body) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.error || `chat: ${res.status}`)
   }
-  return res.json()
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder('utf-8')
+  let buffer = ''
+
+  // 处理一个完整的 SSE 帧（以 \n\n 分隔）。
+  const handleFrame = (frame: string) => {
+    let event = 'message'
+    const dataLines: string[] = []
+    for (const rawLine of frame.split('\n')) {
+      const line = rawLine.replace(/\r$/, '')
+      if (!line) continue
+      if (line.startsWith(':')) continue // SSE 注释
+      const idx = line.indexOf(':')
+      const field = idx === -1 ? line : line.slice(0, idx)
+      const value = idx === -1 ? '' : line.slice(idx + 1).replace(/^ /, '')
+      if (field === 'event') event = value
+      else if (field === 'data') dataLines.push(value)
+    }
+    if (dataLines.length === 0) return
+    const dataStr = dataLines.join('\n')
+    let data: unknown
+    try {
+      data = JSON.parse(dataStr)
+    } catch {
+      return
+    }
+
+    if (event === 'message') {
+      onEvent({ type: 'message', message: data as ChatMessage })
+    } else if (event === 'done') {
+      const d = data as { conversation_id: string; iterations: number }
+      onEvent({ type: 'done', conversation_id: d.conversation_id, iterations: d.iterations })
+    } else if (event === 'error') {
+      const d = data as { error?: string }
+      onEvent({ type: 'error', error: d.error ?? 'unknown error' })
+    }
+  }
+
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    // SSE 帧以 \n\n 分隔（规范也允许 \r\n\r\n）。
+    let sep: number
+    while ((sep = buffer.indexOf('\n\n')) !== -1 || (sep = buffer.indexOf('\r\n\r\n')) !== -1) {
+      const boundary = buffer.indexOf('\n\n') !== -1 ? 2 : 4
+      const frame = buffer.slice(0, sep)
+      buffer = buffer.slice(sep + boundary)
+      if (frame.length > 0) handleFrame(frame)
+    }
+  }
+  // flush 尾部未以 \n\n 结束的帧（正常情况下后端每次都带结束符，这里兜底）
+  const tail = buffer.trim()
+  if (tail) handleFrame(tail)
 }

@@ -1,6 +1,8 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/cloudwego/eino/schema"
@@ -101,15 +103,6 @@ type chatRequest struct {
 	ConversationID string `json:"conversation_id"` // 可选；空则新建对话
 }
 
-type chatResponse struct {
-	ConversationID string         `json:"conversation_id"`
-	Reply          string         `json:"reply"`
-	Iterations     int            `json:"iterations"`
-	// NewMessages 包含本轮产生的所有 assistant/tool 消息（不含用户那条，前端已有）。
-	// 前端按 tool_call_id 把 tool 消息的 content 绑到 assistant 的 tool_calls 展示。
-	NewMessages []core.Message `json:"new_messages"`
-}
-
 const chatSystemPrompt = `You are Orca, an AI SRE assistant for Kubernetes clusters. Follow this diagnostic process when investigating issues:
 
 ## Step 1: Gather Symptoms
@@ -137,6 +130,10 @@ const chatSystemPrompt = `You are Orca, an AI SRE assistant for Kubernetes clust
 - If a tool errors, say what you tried and suggest the next step instead of guessing.
 - For casual questions that don't require investigation, skip the steps and answer directly.`
 
+// handleChat 以 SSE 流式返回:
+//   - event: message, data: core.Message JSON         每产生一条新消息就推送(含 user/assistant/tool)
+//   - event: done,    data: {conversation_id, iterations}  全部完成
+//   - event: error,   data: {error}                   出错(之前已推送的消息仍然有效)
 func (d *Deps) handleChat(c *gin.Context) {
 	var req chatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -162,7 +159,7 @@ func (d *Deps) handleChat(c *gin.Context) {
 		conv = cv
 	}
 
-	// 2. 加载历史（含之前的 tool_calls / tool 消息），组 eino History
+	// 2. 加载历史
 	historyRows, err := core.ListMessages(d.DB, conv.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "load history: " + err.Error()})
@@ -174,38 +171,61 @@ func (d *Deps) handleChat(c *gin.Context) {
 		return
 	}
 
-	// 3. 保存当前用户消息
-	if _, err := core.SaveEinoMessage(d.DB, conv.ID, schema.UserMessage(req.Message)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "save user message: " + err.Error()})
+	// 3. 切换为 SSE 模式
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no") // 反代友好:禁止 nginx/cloudflare 缓冲
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "streaming not supported"})
 		return
 	}
 
-	// 4. 跑 Agentic Loop
-	result, err := d.Engine.Run(c.Request.Context(), llm.RunInput{
+	emit := func(event string, data any) error {
+		b, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", event, b); err != nil {
+			return err
+		}
+		flusher.Flush()
+		return nil
+	}
+
+	// 4. 保存 + 推送用户消息
+	userRow, err := core.SaveEinoMessage(d.DB, conv.ID, schema.UserMessage(req.Message))
+	if err != nil {
+		_ = emit("error", gin.H{"error": "save user message: " + err.Error()})
+		return
+	}
+	if err := emit("message", userRow); err != nil {
+		return // 客户端断开,放弃继续
+	}
+
+	// 5. 跑 Agentic Loop,每产生一条消息即存 + 推
+	result, runErr := d.Engine.Run(c.Request.Context(), llm.RunInput{
 		SystemPrompt: chatSystemPrompt,
 		UserMessage:  req.Message,
 		History:      einoHistory,
+		OnMessage: func(m *schema.Message) {
+			row, err := core.SaveEinoMessage(d.DB, conv.ID, m)
+			if err != nil {
+				_ = emit("error", gin.H{"error": "save message: " + err.Error()})
+				return
+			}
+			_ = emit("message", row)
+		},
 	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	if runErr != nil {
+		_ = emit("error", gin.H{"error": runErr.Error()})
 		return
 	}
 
-	// 5. 保存本轮新消息（assistant tool_calls + tool results + 最终 assistant）
-	newRows := make([]core.Message, 0, len(result.Messages))
-	for _, m := range result.Messages {
-		row, err := core.SaveEinoMessage(d.DB, conv.ID, m)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "save message: " + err.Error()})
-			return
-		}
-		newRows = append(newRows, *row)
-	}
-
-	c.JSON(http.StatusOK, chatResponse{
-		ConversationID: conv.ID,
-		Reply:          result.Final.Content,
-		Iterations:     result.Iterations,
-		NewMessages:    newRows,
+	// 6. done 帧
+	_ = emit("done", gin.H{
+		"conversation_id": conv.ID,
+		"iterations":      result.Iterations,
 	})
 }

@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { streamChat, type ChatMessage } from '../api'
+import {
+  streamChat,
+  listConversationInvestigations,
+  unlinkInvestigationFromConversation,
+  type ChatMessage,
+  type Investigation,
+  type ReferencedInvestigation,
+} from '../api'
 import { UserMessage, AssistantTurn } from './MessageBubble'
+import { InvestigationReferenceDraftChip } from './InvestigationReferenceCard'
+import { SeverityDot, StatusBadge } from './investigationUI'
+import { navigate } from '../navigate'
 
 type Turn =
   | { kind: 'user'; message: ChatMessage }
@@ -21,35 +31,53 @@ function groupIntoTurns(messages: ChatMessage[]): Turn[] {
 }
 
 interface Props {
-  investigationId: string
-  investigationTitle?: string
+  investigation: Investigation
   onClose: () => void
 }
 
 /**
  * 详情页右侧的迷你聊天抽屉。
  * 内部维护独立会话（conversationId 初态 null，首条消息后由后端回填）。
- * 首条消息前会自动拼上当前 investigation 的标题/ID 作为 context。
+ * 初始把当前 investigation 作为引用注入；之后由用户自行管理 draft chip。
  */
-export function InvestigationChatDrawer({ investigationId, investigationTitle, onClose }: Props) {
+export function InvestigationChatDrawer({ investigation, onClose }: Props) {
+  const { id: investigationId } = investigation
+  const initialRef: ReferencedInvestigation = {
+    id: investigation.id,
+    title: investigation.title,
+    severity: investigation.severity,
+    status: investigation.status,
+  }
+
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
+  // 本轮草稿引用；挂载时把当前 investigation 填进去，发送后清空（但顶部 chip bar 仍显示）
+  const [referencedInvs, setReferencedInvs] = useState<ReferencedInvestigation[]>([initialRef])
+  // 对话级引用（发送后由后端回流到关联表，顶部 chip bar 展示）
+  const [convInvestigations, setConvInvestigations] = useState<Investigation[]>([])
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
-  // 首条消息时才需要 prefix context
-  const firstSentRef = useRef(false)
 
-  // investigation 切换时重置所有状态（不太可能在抽屉内切，但兜一下）
+  // investigation 切换时重置所有状态
   useEffect(() => {
     abortRef.current?.abort()
     setMessages([])
     setLoading(false)
     setConversationId(null)
-    firstSentRef.current = false
+    setReferencedInvs([initialRef])
+    setConvInvestigations([])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [investigationId])
+
+  const refreshConvInvs = (cid: string) => {
+    listConversationInvestigations(cid)
+      .then(setConvInvestigations)
+      .catch(() => {})
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -74,21 +102,18 @@ export function InvestigationChatDrawer({ investigationId, investigationTitle, o
 
   const send = async (text: string) => {
     if (!text || loading) return
-    let finalText = text
-    if (!firstSentRef.current) {
-      const title = investigationTitle || '未命名调查'
-      finalText = `> 当前调查：${title} (investigation ${investigationId})\n\n${text}`
-      firstSentRef.current = true
-    }
+    const refIds = referencedInvs.map((r) => r.id)
     setInput('')
+    setReferencedInvs([])
     setLoading(true)
     const ctrl = new AbortController()
     abortRef.current = ctrl
     let createdId: string | null = null
 
     try {
-      await streamChat(finalText, conversationId, {
+      await streamChat(text, conversationId, {
         signal: ctrl.signal,
+        referencedInvestigationIDs: refIds,
         onEvent: (ev) => {
           if (ev.type === 'message') {
             setMessages((prev) => [...prev, ev.message])
@@ -97,6 +122,8 @@ export function InvestigationChatDrawer({ investigationId, investigationTitle, o
             }
           } else if (ev.type === 'done') {
             if (createdId) setConversationId(createdId)
+            const cid = conversationId ?? createdId
+            if (cid) refreshConvInvs(cid)
           } else if (ev.type === 'error') {
             setMessages((prev) => [
               ...prev,
@@ -128,6 +155,16 @@ export function InvestigationChatDrawer({ investigationId, investigationTitle, o
     } finally {
       setLoading(false)
       if (abortRef.current === ctrl) abortRef.current = null
+    }
+  }
+
+  const handleUnlinkConvInv = async (invId: string) => {
+    if (!conversationId) return
+    try {
+      await unlinkInvestigationFromConversation(conversationId, invId)
+      setConvInvestigations((prev) => prev.filter((i) => i.id !== invId))
+    } catch (e) {
+      console.error(e)
     }
   }
 
@@ -173,6 +210,43 @@ export function InvestigationChatDrawer({ investigationId, investigationTitle, o
         </button>
       </div>
 
+      {/* 顶部 chip bar：本对话已关联的 investigations（发送后才有） */}
+      {conversationId && convInvestigations.length > 0 && (
+        <div className="border-b border-[var(--color-border)] px-3 py-2 flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] mr-1">
+            引用
+          </span>
+          {convInvestigations.map((inv) => (
+            <span
+              key={inv.id}
+              className="group inline-flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-md
+                border border-[var(--color-border-strong)] bg-[var(--color-surface)] text-[11.5px] max-w-[240px]"
+            >
+              <SeverityDot severity={inv.severity} />
+              <button
+                type="button"
+                onClick={() => navigate(`/i/${inv.id}`)}
+                className="truncate text-[var(--color-text)] hover:text-[var(--color-accent)]"
+                title={inv.title}
+              >
+                {inv.title || '未命名调查'}
+              </button>
+              <StatusBadge status={inv.status} />
+              <button
+                type="button"
+                onClick={() => void handleUnlinkConvInv(inv.id)}
+                className="ml-1 w-4 h-4 inline-flex items-center justify-center rounded
+                  text-[var(--color-text-dim)] hover:text-[var(--color-danger)]
+                  hover:bg-[var(--color-surface-2)] opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label="解除关联"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto orca-grid">
         <div className="px-3 py-4">
@@ -180,7 +254,7 @@ export function InvestigationChatDrawer({ investigationId, investigationTitle, o
             <div className="orca-fade-in text-[12.5px] text-[var(--color-text-dim)] leading-relaxed">
               <p className="mb-1 text-[var(--color-text-muted)]">基于当前调查问点什么？</p>
               <p>
-                首条问题会自动带上调查标题作为上下文。之后的消息在同一会话里继续追问。
+                发送时会自动带上这条调查作为引用；之后的消息在同一会话里继续追问。
               </p>
             </div>
           )}
@@ -212,6 +286,17 @@ export function InvestigationChatDrawer({ investigationId, investigationTitle, o
             bg-[var(--color-surface)]
             focus-within:border-[var(--color-text)] transition-colors"
         >
+          {referencedInvs.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-2.5 py-1.5 border-b border-[var(--color-border)]">
+              {referencedInvs.map((r) => (
+                <InvestigationReferenceDraftChip
+                  key={r.id}
+                  inv={r}
+                  onRemove={() => setReferencedInvs((prev) => prev.filter((x) => x.id !== r.id))}
+                />
+              ))}
+            </div>
+          )}
           <div className="flex items-end gap-2 px-2.5 py-1.5">
             <span className="font-mono text-[var(--color-text-dim)] select-none pt-[6px] text-[12px]">
               &gt;

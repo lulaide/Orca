@@ -601,8 +601,7 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
         {drawerOpen && (
           <aside className="w-[380px] shrink-0 border-l border-[var(--color-border)] flex flex-col min-h-0">
             <InvestigationChatDrawer
-              investigationId={id}
-              investigationTitle={inv.title}
+              investigation={inv}
               onClose={toggleDrawer}
             />
           </aside>

@@ -119,6 +119,14 @@ func MarkEventProcessed(db *gorm.DB, id, summary string) error {
 	}).Error
 }
 
+// SetEventConversation 把 Event 关联到一个已创建的 Conversation。
+// Router 会在启动 Agent Loop 之前调一次，让前端能通过 event.conversation_id
+// 加载完整的 Agent 消息流。
+func SetEventConversation(db *gorm.DB, eventID, convID string) error {
+	return db.Model(&Event{}).Where("id = ?", eventID).
+		Update("conversation_id", convID).Error
+}
+
 // FindRecentDuplicate 若 within 时间内已存在同 dedupKey 的 Event，返回它；否则返回 nil。
 // 空 dedupKey 直接返回 nil（插件未给 key 就不参与去重）。
 func FindRecentDuplicate(db *gorm.DB, dedupKey string, within time.Duration) (*Event, error) {

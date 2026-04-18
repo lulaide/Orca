@@ -12,8 +12,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
+	"github.com/cloudwego/eino/schema"
 	"gorm.io/gorm"
 
 	"github.com/lulaide/orca/internal/core"
@@ -49,6 +51,9 @@ func (r *EventRouter) Dispatch(ev *core.Event) {
 }
 
 // runAgent 跑 Agent Loop 并写回 processed_at / agent_summary。
+// 自动模式下同样创建一条 Conversation 并把 Agent 的每条消息（user / assistant /
+// tool）写入 messages 表，这样前端 EventDetail 可以复用 /api/conversations/:id/messages
+// + MessageBubble 把整个工具调用链完整展示出来。
 func (r *EventRouter) runAgent(ev *core.Event) {
 	ctx, cancel := context.WithTimeout(context.Background(), r.agentTimeout)
 	defer cancel()
@@ -58,13 +63,43 @@ func (r *EventRouter) runAgent(ev *core.Event) {
 	log.Printf("EventRouter: agent dispatched for event %s (source=%s severity=%s)",
 		ev.ID, ev.Source, ev.Severity)
 
-	systemPrompt := buildAutoModeSystemPrompt(ev)
+	// 先创建一个 Conversation 容器并绑到 Event 上。失败不致命——继续跑，只是前端看不到消息流。
+	var convID string
+	if conv, err := core.CreateConversation(r.db, "事件："+ev.Title); err != nil {
+		log.Printf("EventRouter: create conversation failed: %v", err)
+	} else {
+		convID = conv.ID
+		if err := core.SetEventConversation(r.db, ev.ID, convID); err != nil {
+			log.Printf("EventRouter: link event->conversation failed: %v", err)
+		}
+	}
 
-	result, err := r.engine.Run(ctx, llm.RunInput{
+	systemPrompt := buildAutoModeSystemPrompt(ev)
+	initialUserMsg := buildInitialUserMessage(ev)
+
+	// 把初始 user 消息写入会话，让前端能看见"触发 Agent 的那段输入"。
+	if convID != "" {
+		if _, err := core.SaveEinoMessage(r.db, convID, schema.UserMessage(initialUserMsg)); err != nil {
+			log.Printf("EventRouter: save initial user message failed: %v", err)
+		}
+	}
+
+	input := llm.RunInput{
 		SystemPrompt: systemPrompt,
-		UserMessage:  "Begin.",
-		// 不传 OnMessage：自动模式下消息通过工具直接写库，不需要 SSE
-	})
+		UserMessage:  initialUserMsg,
+	}
+	if convID != "" {
+		input.OnMessage = func(m *schema.Message) {
+			if m == nil {
+				return
+			}
+			if _, err := core.SaveEinoMessage(r.db, convID, m); err != nil {
+				log.Printf("EventRouter: save message failed: %v", err)
+			}
+		}
+	}
+
+	result, err := r.engine.Run(ctx, input)
 	if err != nil {
 		log.Printf("EventRouter: agent loop failed for event %s: %v", ev.ID, err)
 		if err := core.MarkEventProcessed(r.db, ev.ID, "Agent loop failed: "+err.Error()); err != nil {
@@ -81,6 +116,22 @@ func (r *EventRouter) runAgent(ev *core.Event) {
 		log.Printf("EventRouter: mark processed failed: %v", err)
 	}
 	log.Printf("EventRouter: event %s processed in %d iterations", ev.ID, result.Iterations)
+}
+
+// buildInitialUserMessage 生成 Agent Loop 的首条 user 消息。
+// 这条消息也会被存进 messages 表——前端用它作为事件详情的"起始输入"展示。
+// 和 system prompt 不重复：system prompt 偏职责定义，这里就是简短的事件事实陈述。
+func buildInitialUserMessage(ev *core.Event) string {
+	var b strings.Builder
+	b.WriteString("收到新的事件，请按系统提示开始处理。\n\n")
+	fmt.Fprintf(&b, "- event_id: %s\n", ev.ID)
+	fmt.Fprintf(&b, "- source: %s\n", ev.Source)
+	fmt.Fprintf(&b, "- severity: %s\n", ev.Severity)
+	fmt.Fprintf(&b, "- title: %s\n", ev.Title)
+	if len(ev.Payload) > 0 {
+		b.WriteString("- payload 见 system prompt 中附带的 JSON。\n")
+	}
+	return b.String()
 }
 
 // buildAutoModeSystemPrompt 为自动值守模式构造 system prompt。

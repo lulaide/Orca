@@ -97,7 +97,10 @@ type Event struct {
 	DedupKey        string         `gorm:"index" json:"dedup_key"`
 	ProcessedAt     *time.Time     `json:"processed_at,omitempty"`
 	AgentSummary    string         `gorm:"type:text" json:"agent_summary,omitempty"`
-	CreatedAt       time.Time      `gorm:"index" json:"created_at"`
+	// ConversationID 指向 Router 为这次事件创建的 Agent 对话；前端用它加载完整
+	// 工具调用流。Agent 尚未运行（比如刚入库）时为空字符串。
+	ConversationID string    `gorm:"index" json:"conversation_id,omitempty"`
+	CreatedAt      time.Time `gorm:"index" json:"created_at"`
 }
 
 // PluginConfig 是 Trigger 插件的运行时实例配置。

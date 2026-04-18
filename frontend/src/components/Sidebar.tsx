@@ -18,6 +18,7 @@ type Route =
   | { kind: 'investigation'; id: string }
   | { kind: 'investigation-list'; view: string }
   | { kind: 'events-list' }
+  | { kind: 'event-detail'; id: string }
 
 interface Props {
   activeId: string | null
@@ -63,7 +64,7 @@ export function Sidebar({ activeId, onSelect, refreshToken, route }: Props) {
 
   const activeInvId = route?.kind === 'investigation' ? route.id : null
   const onInvListRoute = route?.kind === 'investigation-list'
-  const onEventsListRoute = route?.kind === 'events-list'
+  const onEventsListRoute = route?.kind === 'events-list' || route?.kind === 'event-detail'
 
   useEffect(() => {
     const load = () => getStatus().then(setStatus).catch(() => {})

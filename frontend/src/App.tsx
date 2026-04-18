@@ -5,6 +5,7 @@ import { HomePanel } from './components/HomePanel'
 import { InvestigationListPanel } from './components/InvestigationListPanel'
 import { InvestigationDetailPanel } from './components/InvestigationDetailPanel'
 import { EventsListPanel } from './components/EventsListPanel'
+import { EventDetailPanel } from './components/EventDetailPanel'
 import type { InvestigationView, ReferencedInvestigation } from './api'
 
 type Route =
@@ -13,6 +14,7 @@ type Route =
   | { kind: 'investigation'; id: string }
   | { kind: 'investigation-list'; view: InvestigationView }
   | { kind: 'events-list' }
+  | { kind: 'event-detail'; id: string }
 
 function parseConversationId(pathname: string): string | null {
   const m = pathname.match(/^\/c\/([A-Za-z0-9_-]{6,})$/)
@@ -22,6 +24,8 @@ function parseConversationId(pathname: string): string | null {
 function parseRoute(pathname: string, search: string): Route {
   const invDetail = pathname.match(/^\/i\/([A-Za-z0-9_-]{6,})$/)
   if (invDetail) return { kind: 'investigation', id: invDetail[1] }
+  const evDetail = pathname.match(/^\/events\/([A-Za-z0-9_-]{6,})$/)
+  if (evDetail) return { kind: 'event-detail', id: evDetail[1] }
   if (pathname === '/events' || pathname === '/events/') {
     return { kind: 'events-list' }
   }
@@ -140,6 +144,9 @@ function App() {
         )}
         {route.kind === 'events-list' && (
           <EventsListPanel refreshToken={refreshToken} />
+        )}
+        {route.kind === 'event-detail' && (
+          <EventDetailPanel id={route.id} />
         )}
       </main>
     </div>

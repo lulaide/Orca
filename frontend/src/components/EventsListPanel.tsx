@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { listEvents, getEvent, type OrcaEvent, type Investigation } from '../api'
+import { listEvents, type OrcaEvent } from '../api'
 import { navigate } from '../navigate'
 import { SeverityDot } from './investigationUI'
 import { formatRelativeTime } from '../timeFormat'
@@ -115,109 +115,48 @@ export function EventsListPanel({ refreshToken }: Props) {
 }
 
 function EventRow({ ev }: { ev: OrcaEvent }) {
-  const [expanded, setExpanded] = useState(false)
-  const [invs, setInvs] = useState<Investigation[] | null>(null)
-  const [loadingInvs, setLoadingInvs] = useState(false)
-
-  const toggleExpand = async () => {
-    if (!expanded && invs === null && !loadingInvs) {
-      setLoadingInvs(true)
-      try {
-        const detail = await getEvent(ev.id)
-        setInvs(detail.investigations || [])
-      } catch {
-        setInvs([])
-      } finally {
-        setLoadingInvs(false)
-      }
-    }
-    setExpanded(!expanded)
-  }
-
   const processed = !!ev.processed_at
 
   return (
-    <div
-      className="rounded-md border border-[var(--color-border)] hover:border-[var(--color-border-strong)] transition-colors"
+    <button
+      type="button"
+      onClick={() => navigate(`/events/${ev.id}`)}
+      className="w-full text-left rounded-md border border-[var(--color-border)]
+        hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface)]
+        transition-colors px-4 py-3"
     >
-      <button
-        type="button"
-        onClick={toggleExpand}
-        className="w-full text-left px-4 py-3 hover:bg-[var(--color-surface)] transition-colors rounded-md"
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <SeverityDot severity={ev.severity} />
-          <span className="font-serif-display text-[17px] text-[var(--color-text)] flex-1 truncate">
-            {ev.title}
+      <div className="flex items-center gap-2 mb-1">
+        <SeverityDot severity={ev.severity} />
+        <span className="font-serif-display text-[17px] text-[var(--color-text)] flex-1 truncate">
+          {ev.title}
+        </span>
+        {!processed && (
+          <span className="text-[11px] font-mono uppercase tracking-[0.18em] px-1.5 py-0.5 border rounded text-[var(--color-warn)] border-[var(--color-warn)]/40">
+            pending
           </span>
-          {!processed && (
-            <span className="text-[11px] font-mono uppercase tracking-[0.18em] px-1.5 py-0.5 border rounded text-[var(--color-warn)] border-[var(--color-warn)]/40">
-              pending
-            </span>
-          )}
-          {processed && (
-            <span className="text-[11px] font-mono uppercase tracking-[0.18em] px-1.5 py-0.5 border rounded text-[var(--color-ok)] border-[var(--color-ok)]/40">
-              done
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-3 text-[11px] font-mono text-[var(--color-text-dim)]">
-          <span className="tabular-nums">{formatRelativeTime(ev.created_at)}</span>
-          <span>· {ev.source}</span>
-          {ev.related_services && ev.related_services.length > 0 && (
-            <span className="truncate">
-              · {ev.related_services.slice(0, 2).join(', ')}
-              {ev.related_services.length > 2 && ` +${ev.related_services.length - 2}`}
-            </span>
-          )}
-        </div>
-        {ev.agent_summary && (
-          <div className="mt-2 text-[12.5px] text-[var(--color-text-muted)] leading-relaxed line-clamp-2">
-            {ev.agent_summary}
-          </div>
         )}
-      </button>
-
-      {expanded && (
-        <div className="border-t border-[var(--color-border)] px-4 py-3 bg-[var(--color-surface)]/50 text-[12px]">
-          <div className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-dim)] font-mono">
-            关联调查 · linked investigations
-          </div>
-          {loadingInvs && (
-            <div className="text-[var(--color-text-dim)] italic">加载中…</div>
-          )}
-          {!loadingInvs && invs && invs.length === 0 && (
-            <div className="text-[var(--color-text-dim)] italic">
-              本次事件未产生调查（Agent 可能判定为瞬时抖动）
-            </div>
-          )}
-          {!loadingInvs && invs && invs.length > 0 && (
-            <div className="space-y-1.5">
-              {invs.map((inv) => (
-                <button
-                  key={inv.id}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    navigate(`/i/${inv.id}`)
-                  }}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded
-                    hover:bg-[var(--color-bg)] text-left transition-colors"
-                >
-                  <SeverityDot severity={inv.severity} />
-                  <span className="flex-1 truncate text-[var(--color-text)]">
-                    {inv.title}
-                  </span>
-                  <span className="text-[11px] font-mono text-[var(--color-text-dim)]">
-                    {inv.status}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+        {processed && (
+          <span className="text-[11px] font-mono uppercase tracking-[0.18em] px-1.5 py-0.5 border rounded text-[var(--color-ok)] border-[var(--color-ok)]/40">
+            done
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-3 text-[11px] font-mono text-[var(--color-text-dim)]">
+        <span className="tabular-nums">{formatRelativeTime(ev.created_at)}</span>
+        <span>· {ev.source}</span>
+        {ev.related_services && ev.related_services.length > 0 && (
+          <span className="truncate">
+            · {ev.related_services.slice(0, 2).join(', ')}
+            {ev.related_services.length > 2 && ` +${ev.related_services.length - 2}`}
+          </span>
+        )}
+      </div>
+      {ev.agent_summary && (
+        <div className="mt-2 text-[12.5px] text-[var(--color-text-muted)] leading-relaxed line-clamp-2">
+          {ev.agent_summary}
         </div>
       )}
-    </div>
+    </button>
   )
 }
 

@@ -267,6 +267,7 @@ export interface OrcaEvent {
   dedup_key?: string
   processed_at?: string | null
   agent_summary?: string
+  conversation_id?: string
   created_at: string
 }
 

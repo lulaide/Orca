@@ -1,0 +1,140 @@
+// Package dispatch 负责把已入库的 Event 丢进后台 Agent Loop。
+//
+// 独立成包是为了避免 core → llm/tools 的循环依赖：
+//
+//	api → dispatch → { core, llm, tools }
+//	         ↑
+//	       plugin handlers 只拿到 *EventRouter
+package dispatch
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"time"
+
+	"gorm.io/gorm"
+
+	"github.com/lulaide/orca/internal/core"
+	"github.com/lulaide/orca/internal/llm"
+	"github.com/lulaide/orca/internal/tools"
+)
+
+// EventRouter 把一个已写入 events 表的 Event 扔进后台 Agent Loop。
+// Webhook handler 只需 Dispatch 一下就可以立刻返 202；后续的 LLM 推理、
+// 工具调用、Investigation 创建都在 goroutine 里完成。
+type EventRouter struct {
+	db     *gorm.DB
+	engine *llm.Engine
+	// agentTimeout 是单次 Agent Loop 的总超时（防止 LLM 卡住占内存）。
+	agentTimeout time.Duration
+}
+
+// NewEventRouter 建一个 Router。agentTimeout=0 时用默认值 5 分钟。
+func NewEventRouter(db *gorm.DB, engine *llm.Engine, agentTimeout time.Duration) *EventRouter {
+	if agentTimeout <= 0 {
+		agentTimeout = 5 * time.Minute
+	}
+	return &EventRouter{db: db, engine: engine, agentTimeout: agentTimeout}
+}
+
+// Dispatch 启动后台 goroutine 跑 Agent Loop，立即返回。
+// 调用方应该已经 CreateEvent 成功（ev.ID 非空）。
+func (r *EventRouter) Dispatch(ev *core.Event) {
+	if r == nil || ev == nil {
+		return
+	}
+	go r.runAgent(ev)
+}
+
+// runAgent 跑 Agent Loop 并写回 processed_at / agent_summary。
+func (r *EventRouter) runAgent(ev *core.Event) {
+	ctx, cancel := context.WithTimeout(context.Background(), r.agentTimeout)
+	defer cancel()
+	// 注入 event_id，供 create_investigation 工具自动回链
+	ctx = context.WithValue(ctx, tools.EventIDKey, ev.ID)
+
+	log.Printf("EventRouter: agent dispatched for event %s (source=%s severity=%s)",
+		ev.ID, ev.Source, ev.Severity)
+
+	systemPrompt := buildAutoModeSystemPrompt(ev)
+
+	result, err := r.engine.Run(ctx, llm.RunInput{
+		SystemPrompt: systemPrompt,
+		UserMessage:  "Begin.",
+		// 不传 OnMessage：自动模式下消息通过工具直接写库，不需要 SSE
+	})
+	if err != nil {
+		log.Printf("EventRouter: agent loop failed for event %s: %v", ev.ID, err)
+		if err := core.MarkEventProcessed(r.db, ev.ID, "Agent loop failed: "+err.Error()); err != nil {
+			log.Printf("EventRouter: mark processed failed: %v", err)
+		}
+		return
+	}
+
+	summary := ""
+	if result != nil && result.Final != nil {
+		summary = result.Final.Content
+	}
+	if err := core.MarkEventProcessed(r.db, ev.ID, summary); err != nil {
+		log.Printf("EventRouter: mark processed failed: %v", err)
+	}
+	log.Printf("EventRouter: event %s processed in %d iterations", ev.ID, result.Iterations)
+}
+
+// buildAutoModeSystemPrompt 为自动值守模式构造 system prompt。
+// 告诉 LLM 它现在没有用户可以问、需要自主决定 0/1/N 个 Investigation。
+func buildAutoModeSystemPrompt(ev *core.Event) string {
+	payloadJSON := "{}"
+	if len(ev.Payload) > 0 {
+		var pretty any
+		if json.Unmarshal(ev.Payload, &pretty) == nil {
+			if b, err := json.MarshalIndent(pretty, "", "  "); err == nil {
+				payloadJSON = string(b)
+			} else {
+				payloadJSON = string(ev.Payload)
+			}
+		} else {
+			payloadJSON = string(ev.Payload)
+		}
+	}
+
+	return fmt.Sprintf(`你是 Orca，一个自动响应告警的 AI 运维 Agent。当前是**无人值守**模式——没有用户可以提问。
+
+Event id: %s
+Event source: %s
+Event severity: %s
+Event title: %s
+Event payload:
+`+"```"+`json
+%s
+`+"```"+`
+
+## 你的任务
+
+1. **先只读探索**：用 get_pods / describe_resource / get_pod_logs / get_events / get_node_status 等只读工具搞清楚集群里到底发生了什么，不要凭空编造发现。
+
+2. **自主决定本次事件要开几个 Investigation**：
+   - **0 个** — 症状已自愈或只是瞬时抖动：不要调 create_investigation，直接给一句简短结论就停。
+   - **1 个** — 只有一个明确的持续问题：调一次 create_investigation（event_id 会从上下文自动注入，你不用传）。
+   - **N 个** — 发现多个彼此独立的问题（比如 API Pod OOM 同时数据库连不上）：每个独立问题开一个 Investigation，不要合并；这样团队可以分头并行处理。
+
+3. **继续深入调查**：创建之后，用 add_investigation_entry（type=discovery）把关键发现逐条记录到对应 Investigation 的时间线上。每条简洁、事实性。
+
+4. **仅在证据充分时才 resolve**：调 resolve_investigation 必须有高置信度的 root_cause + solution。如果还有不确定，就保留 open 状态，并用 add_investigation_entry（type=note）写一条总结你已尝试的操作和未解之处，交给人工。
+
+## 语言要求（重要）
+
+**所有由你写入数据库的内容必须使用中文**，包括：
+- Investigation 的 title / description / root_cause / solution
+- investigation_entries 的 content
+- 本次事件的最终 summary（你最后那段 assistant 文本）
+
+工具调用参数里的 JSON key、identifier（如 namespace / pod 名）保留原样；仅自然语言字段用中文。
+
+## 输出约定
+
+你最后那段纯文本回复会作为 Event 的处理摘要入库。保持简短（1–3 句话）：说明你的结论 + 开了几个 Investigation。`,
+		ev.ID, ev.Source, ev.Severity, ev.Title, payloadJSON)
+}

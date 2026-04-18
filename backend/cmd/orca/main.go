@@ -7,9 +7,11 @@ import (
 	"github.com/lulaide/orca/internal/config"
 	"github.com/lulaide/orca/internal/core"
 	"github.com/lulaide/orca/internal/db"
+	"github.com/lulaide/orca/internal/dispatch"
 	"github.com/lulaide/orca/internal/kube"
 	"github.com/lulaide/orca/internal/llm"
 	"github.com/lulaide/orca/internal/tools"
+	"github.com/lulaide/orca/internal/triggers"
 )
 
 func main() {
@@ -28,6 +30,8 @@ func main() {
 		&core.Investigation{},
 		&core.InvestigationEntry{},
 		&core.ConversationInvestigation{},
+		&core.Event{},
+		&core.PluginConfig{},
 	); err != nil {
 		log.Fatalf("Migration: %v", err)
 	}
@@ -81,13 +85,23 @@ func main() {
 	// 7. Agent Engine
 	engine := llm.NewEngine(llmMgr, reg)
 
-	// 8. HTTP Server
+	// 8. Trigger 插件注册表（编译期注册所有已知插件类型）
+	triggerReg := triggers.NewRegistry()
+	triggerReg.Register(triggers.UptimeKuma{})
+	log.Printf("Triggers: registered plugins: %v", pluginNames(triggerReg))
+
+	// 9. Event Router：把 Event 分派到后台 Agent Loop
+	eventRouter := dispatch.NewEventRouter(gormDB, engine, 0)
+
+	// 10. HTTP Server
 	router := api.NewRouter(&api.Deps{
 		DB:       gormDB,
 		LLM:      llmMgr,
 		Kube:     kubeMgr,
 		Engine:   engine,
 		Registry: reg,
+		Triggers: triggerReg,
+		Router:   eventRouter,
 	})
 
 	addr := cfg.Server.Addr()
@@ -95,4 +109,13 @@ func main() {
 	if err := router.Run(addr); err != nil {
 		log.Fatalf("Server: %v", err)
 	}
+}
+
+func pluginNames(r *triggers.Registry) []string {
+	all := r.All()
+	names := make([]string, 0, len(all))
+	for _, p := range all {
+		names = append(names, p.Name())
+	}
+	return names
 }

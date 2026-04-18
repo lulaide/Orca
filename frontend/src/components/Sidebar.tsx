@@ -17,6 +17,7 @@ type Route =
   | { kind: 'chat'; conversationId: string | null }
   | { kind: 'investigation'; id: string }
   | { kind: 'investigation-list'; view: string }
+  | { kind: 'events-list' }
 
 interface Props {
   activeId: string | null
@@ -62,6 +63,7 @@ export function Sidebar({ activeId, onSelect, refreshToken, route }: Props) {
 
   const activeInvId = route?.kind === 'investigation' ? route.id : null
   const onInvListRoute = route?.kind === 'investigation-list'
+  const onEventsListRoute = route?.kind === 'events-list'
 
   useEffect(() => {
     const load = () => getStatus().then(setStatus).catch(() => {})
@@ -138,6 +140,23 @@ export function Sidebar({ activeId, onSelect, refreshToken, route }: Props) {
           <span className="text-[var(--color-accent)] font-mono leading-none">+</span>
           <span>新对话</span>
           <span className="ml-auto text-[11px] text-[var(--color-text-dim)] font-mono">new</span>
+        </button>
+      </div>
+
+      {/* Events entry */}
+      <div className="px-2 pb-2 border-b border-[var(--color-border)]">
+        <button
+          type="button"
+          onClick={() => navigate('/events')}
+          className={`w-full flex items-center gap-2 px-3 py-2 rounded-md transition-colors
+            ${onEventsListRoute
+              ? 'bg-[var(--color-bg)] text-[var(--color-text)]'
+              : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text)]'}`}
+        >
+          <span className="text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono">
+            事件 · events
+          </span>
+          <span className="ml-auto text-[11px] text-[var(--color-text-dim)] font-mono">→</span>
         </button>
       </div>
 

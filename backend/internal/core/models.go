@@ -80,3 +80,35 @@ type ConversationInvestigation struct {
 	InvestigationID string    `gorm:"primaryKey" json:"investigation_id"`
 	CreatedAt       time.Time `json:"created_at"`
 }
+
+// Event 是 Orca 捕捉到的一次外部信号（来自告警源 / CI-CD / 巡检 / 用户请求）。
+// 触发 Agent 的自动值守流程；Agent 探索后自己决定创建 0..N 个 Investigation。
+//
+// DedupKey 用于同告警源 60 秒窗口内的去重（UptimeKuma 的心跳会按秒重发）。
+// ProcessedAt / AgentSummary 是 Agent Loop 跑完后回填的——即使 Agent 没建
+// 任何 Investigation（瞬时抖动），也会留下审计痕迹。
+type Event struct {
+	ID              string         `gorm:"primaryKey" json:"id"`
+	Source          string         `gorm:"index" json:"source"`                     // "uptime-kuma" | "prometheus" | ...
+	Severity        string         `gorm:"default:info" json:"severity"`            // critical | warning | info
+	Title           string         `json:"title"`
+	Payload         datatypes.JSON `gorm:"type:jsonb" json:"payload"`
+	RelatedServices datatypes.JSON `gorm:"type:jsonb" json:"related_services"`
+	DedupKey        string         `gorm:"index" json:"dedup_key"`
+	ProcessedAt     *time.Time     `json:"processed_at,omitempty"`
+	AgentSummary    string         `gorm:"type:text" json:"agent_summary,omitempty"`
+	CreatedAt       time.Time      `gorm:"index" json:"created_at"`
+}
+
+// PluginConfig 是 Trigger 插件的运行时实例配置。
+// 插件"类型"由 Go 代码静态注册到 triggers.Registry；"实例配置"存本表，
+// Web 面板可启用/禁用、轮换 secret_token、改 JSONB 配置。
+type PluginConfig struct {
+	ID          string         `gorm:"primaryKey" json:"id"`
+	PluginName  string         `gorm:"uniqueIndex" json:"plugin_name"` // 对应 Plugin.Name()
+	Enabled     bool           `gorm:"default:true" json:"enabled"`
+	SecretToken string         `json:"secret_token,omitempty"`
+	Config      datatypes.JSON `gorm:"type:jsonb" json:"config,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+}

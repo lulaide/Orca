@@ -255,6 +255,106 @@ export async function listInvestigationEntries(id: string): Promise<Investigatio
   return res.json()
 }
 
+// ---- Events ----
+
+export interface OrcaEvent {
+  id: string
+  source: string
+  severity: InvestigationSeverity
+  title: string
+  payload: unknown
+  related_services?: string[]
+  dedup_key?: string
+  processed_at?: string | null
+  agent_summary?: string
+  created_at: string
+}
+
+export interface ListEventsOpts {
+  source?: string
+  severity?: string
+  processed?: boolean
+  limit?: number
+}
+
+export async function listEvents(opts: ListEventsOpts = {}): Promise<OrcaEvent[]> {
+  const params = new URLSearchParams()
+  if (opts.source) params.set('source', opts.source)
+  if (opts.severity) params.set('severity', opts.severity)
+  if (opts.processed !== undefined) params.set('processed', opts.processed ? 'true' : 'false')
+  if (opts.limit) params.set('limit', String(opts.limit))
+  const qs = params.toString()
+  const res = await fetch(`/api/events${qs ? '?' + qs : ''}`)
+  if (!res.ok) throw new Error(`events: ${res.status}`)
+  return res.json()
+}
+
+export interface EventDetail {
+  event: OrcaEvent
+  investigations: Investigation[]
+}
+
+export async function getEvent(id: string): Promise<EventDetail> {
+  const res = await fetch(`/api/events/${id}`)
+  if (!res.ok) throw new Error(`event: ${res.status}`)
+  return res.json()
+}
+
+// ---- Plugins ----
+
+export interface PluginInfo {
+  name: string
+  description: string
+  configured: boolean
+  enabled: boolean
+  has_token: boolean
+  webhook_url?: string
+}
+
+export async function listPlugins(): Promise<PluginInfo[]> {
+  const res = await fetch('/api/plugins')
+  if (!res.ok) throw new Error(`plugins: ${res.status}`)
+  return res.json()
+}
+
+export interface PluginTokenInfo {
+  plugin: string
+  secret_token: string
+  enabled: boolean
+}
+
+export async function enablePlugin(name: string): Promise<void> {
+  const res = await fetch(`/api/plugins/${name}/enable`, { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `enable: ${res.status}`)
+  }
+}
+
+export async function disablePlugin(name: string): Promise<void> {
+  const res = await fetch(`/api/plugins/${name}/disable`, { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `disable: ${res.status}`)
+  }
+}
+
+export async function regeneratePluginToken(name: string): Promise<PluginTokenInfo> {
+  const res = await fetch(`/api/plugins/${name}/regenerate-token`, { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `regenerate token: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function getPluginToken(name: string): Promise<PluginTokenInfo | null> {
+  const res = await fetch(`/api/plugins/${name}/token`)
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`plugin token: ${res.status}`)
+  return res.json()
+}
+
 export async function createInvestigationEntry(
   id: string,
   body: { type: InvestigationEntryType; content: string },

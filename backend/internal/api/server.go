@@ -4,9 +4,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"github.com/lulaide/orca/internal/dispatch"
 	"github.com/lulaide/orca/internal/kube"
 	"github.com/lulaide/orca/internal/llm"
 	"github.com/lulaide/orca/internal/tools"
+	"github.com/lulaide/orca/internal/triggers"
 )
 
 // Deps 是 API 层依赖的所有模块,由 main.go 组装后传入。
@@ -16,6 +18,8 @@ type Deps struct {
 	Kube     *kube.Manager
 	Engine   *llm.Engine
 	Registry *tools.Registry
+	Triggers *triggers.Registry
+	Router   *dispatch.EventRouter
 }
 
 // NewRouter 创建并返回 gin 路由。
@@ -74,6 +78,20 @@ func NewRouter(d *Deps) *gin.Engine {
 
 		// Chat: 最简的对话入口
 		api.POST("/chat", d.handleChat)
+
+		// Events: 事件列表 + 详情（反查关联 Investigation）
+		api.GET("/events", d.handleListEvents)
+		api.GET("/events/:id", d.handleGetEvent)
+
+		// Plugins: 触发插件的注册 + 启停 + token 管理
+		api.GET("/plugins", d.handleListPlugins)
+		api.POST("/plugins/:name/enable", d.handleEnablePlugin)
+		api.POST("/plugins/:name/disable", d.handleDisablePlugin)
+		api.POST("/plugins/:name/regenerate-token", d.handleRegeneratePluginToken)
+		api.GET("/plugins/:name/token", d.handleGetPluginToken)
+
+		// Webhooks: 所有 Trigger 插件共享入口
+		api.POST("/webhooks/:plugin", d.handleWebhook)
 	}
 
 	return r

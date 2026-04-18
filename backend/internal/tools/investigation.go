@@ -257,6 +257,7 @@ type createInvestigationArgs struct {
 	Description     string   `json:"description"`
 	Severity        string   `json:"severity"`
 	RelatedServices []string `json:"related_services"`
+	EventID         string   `json:"event_id"`
 }
 
 type createInvestigationResult struct {
@@ -294,6 +295,11 @@ func createInvestigationInfo() *schema.ToolInfo {
 				Required: false,
 				ElemInfo: &schema.ParameterInfo{Type: schema.String},
 			},
+			"event_id": {
+				Type:     schema.String,
+				Desc:     "Optional: the Event ID that triggered this investigation. In UNATTENDED (event-driven) mode this is auto-filled from context — you usually don't need to pass it.",
+				Required: false,
+			},
 		}),
 	}
 }
@@ -311,11 +317,33 @@ func handleCreateInvestigation(ctx context.Context, args string) (string, error)
 		return "", err
 	}
 
+	// Source / EventID 的来源优先级：显式参数 > ctx（自动值守） > "ask"（Web 对话默认）。
+	// 当关联到 Event 时，source 取原始 event.source（例如 "uptime-kuma"），
+	// 让 Investigation 列表能直接按告警源过滤。
+	source := "ask"
+	var eventID *string
+	if a.EventID != "" {
+		eid := a.EventID
+		eventID = &eid
+	} else if ctxEID := EventIDFromContext(ctx); ctxEID != "" {
+		eid := ctxEID
+		eventID = &eid
+	}
+	if eventID != nil {
+		if ev, err := core.GetEvent(db, *eventID); err == nil {
+			source = ev.Source
+		} else {
+			// 找不到事件：保留 event_id 指针，但 source 落到通用的 "event"
+			source = "event"
+		}
+	}
+
 	inv, err := core.CreateInvestigation(db, core.CreateInvestigationInput{
 		Title:           a.Title,
 		Description:     a.Description,
 		Severity:        a.Severity,
-		Source:          "ask",
+		Source:          source,
+		EventID:         eventID,
 		RelatedServices: a.RelatedServices,
 	})
 	if err != nil {

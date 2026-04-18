@@ -4,6 +4,7 @@ import { ChatPanel } from './components/ChatPanel'
 import { HomePanel } from './components/HomePanel'
 import { InvestigationListPanel } from './components/InvestigationListPanel'
 import { InvestigationDetailPanel } from './components/InvestigationDetailPanel'
+import { EventsListPanel } from './components/EventsListPanel'
 import type { InvestigationView, ReferencedInvestigation } from './api'
 
 type Route =
@@ -11,6 +12,7 @@ type Route =
   | { kind: 'chat'; conversationId: string | null }
   | { kind: 'investigation'; id: string }
   | { kind: 'investigation-list'; view: InvestigationView }
+  | { kind: 'events-list' }
 
 function parseConversationId(pathname: string): string | null {
   const m = pathname.match(/^\/c\/([A-Za-z0-9_-]{6,})$/)
@@ -20,6 +22,9 @@ function parseConversationId(pathname: string): string | null {
 function parseRoute(pathname: string, search: string): Route {
   const invDetail = pathname.match(/^\/i\/([A-Za-z0-9_-]{6,})$/)
   if (invDetail) return { kind: 'investigation', id: invDetail[1] }
+  if (pathname === '/events' || pathname === '/events/') {
+    return { kind: 'events-list' }
+  }
   if (pathname === '/i' || pathname === '/i/') {
     const sp = new URLSearchParams(search)
     const v = sp.get('view') as InvestigationView | null
@@ -132,6 +137,9 @@ function App() {
         )}
         {route.kind === 'investigation' && (
           <InvestigationDetailPanel id={route.id} onChanged={bumpRefresh} />
+        )}
+        {route.kind === 'events-list' && (
+          <EventsListPanel refreshToken={refreshToken} />
         )}
       </main>
     </div>

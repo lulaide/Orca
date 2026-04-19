@@ -1,1 +1,14 @@
 .claude
+
+# Backend
+backend/orca.exe
+backend/orca.exe~
+backend/config.yaml
+backend/cmd/orca/dist/assets/
+backend/cmd/orca/dist/*.html
+backend/cmd/orca/dist/*.svg
+!backend/cmd/orca/dist/.gitkeep
+
+# Frontend (handled by frontend/.gitignore, but just in case)
+frontend/node_modules/
+frontend/dist/

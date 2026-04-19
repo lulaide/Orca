@@ -61,6 +61,26 @@ func (d *Deps) handleUpdateLLMSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, d.LLM.Status())
 }
 
+// handleTestLLM 向当前配置的 LLM 发一条最简消息，验证 API 可达 + 密钥有效。
+func (d *Deps) handleTestLLM(c *gin.Context) {
+	cm := d.LLM.ChatModel()
+	if cm == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "LLM 未配置"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	defer cancel()
+
+	resp, err := cm.Generate(ctx, []*schema.Message{
+		schema.UserMessage("ping"),
+	})
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "reply": resp.Content})
+}
+
 // ---- /api/settings/kubernetes ----
 
 func (d *Deps) handleGetKubeSettings(c *gin.Context) {

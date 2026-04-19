@@ -81,6 +81,11 @@ export async function updateLLMSettings(body: LLMSettingsInput): Promise<StatusR
   return res.json()
 }
 
+export async function testLLMConnection(): Promise<{ ok: boolean; reply?: string; error?: string }> {
+  const res = await fetch('/api/settings/llm/test', { method: 'POST' })
+  return res.json()
+}
+
 // ---- Settings: Kubernetes ----
 
 export async function connectKubeInCluster(): Promise<StatusResponse['kubernetes']> {

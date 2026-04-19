@@ -60,6 +60,7 @@ func NewRouter(d *Deps) *gin.Engine {
 		// Settings: LLM
 		api.GET("/settings/llm", d.handleGetLLMSettings)
 		api.PUT("/settings/llm", d.handleUpdateLLMSettings)
+		api.POST("/settings/llm/test", d.handleTestLLM)
 
 		// Settings: Kubernetes
 		api.GET("/settings/kubernetes", d.handleGetKubeSettings)

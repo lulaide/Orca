@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import {
   getStatus,
   updateLLMSettings,
+  testLLMConnection,
   connectKubeInCluster,
   uploadKubeconfig,
   disconnectKube,
@@ -112,6 +113,8 @@ export function SettingsPanel({ refreshToken }: Props) {
 function LLMSection({ status, onSaved }: { status: StatusResponse | null; onSaved: () => void }) {
   const llm = status?.llm
   const [editing, setEditing] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; reply?: string; error?: string } | null>(null)
   const [provider, setProvider] = useState('')
   const [endpoint, setEndpoint] = useState('')
   const [apiKey, setApiKey] = useState('')
@@ -167,16 +170,38 @@ function LLMSection({ status, onSaved }: { status: StatusResponse | null; onSave
               : '未配置 — Agent 无法工作'}
           </span>
           {!editing && (
-            <button type="button" onClick={startEdit}
-              className="ml-auto text-[11px] font-mono text-[var(--color-accent)] hover:underline">
-              {llm?.configured ? '修改' : '配置'}
-            </button>
+            <div className="ml-auto flex items-center gap-2">
+              {llm?.configured && (
+                <button type="button" disabled={testing}
+                  onClick={async () => {
+                    setTesting(true); setTestResult(null)
+                    try { setTestResult(await testLLMConnection()) }
+                    catch (e) { setTestResult({ ok: false, error: e instanceof Error ? e.message : '测试失败' }) }
+                    finally { setTesting(false) }
+                  }}
+                  className="text-[11px] font-mono text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors disabled:opacity-50">
+                  {testing ? '测试中…' : '测试连接'}
+                </button>
+              )}
+              <button type="button" onClick={startEdit}
+                className="text-[11px] font-mono text-[var(--color-accent)] hover:underline">
+                {llm?.configured ? '修改' : '配置'}
+              </button>
+            </div>
           )}
         </div>
 
         {llm?.last_error && (
           <div className="text-[12px] text-[var(--color-danger)] font-mono mb-3">
             {llm.last_error}
+          </div>
+        )}
+
+        {testResult && (
+          <div className={`text-[12px] font-mono mb-3 ${testResult.ok ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'}`}>
+            {testResult.ok
+              ? `连接正常 — LLM 回复：${testResult.reply?.slice(0, 80) || '(empty)'}`
+              : `连接失败 — ${testResult.error}`}
           </div>
         )}
 

@@ -103,6 +103,34 @@ type Event struct {
 	CreatedAt      time.Time `gorm:"index" json:"created_at"`
 }
 
+// MCPConnection 是一个外部 MCP Server 的连接配置。
+// Orca 作为 MCP Client 连接到这些 Server，发现并注册它们提供的工具，
+// 让 Agent 在推理时能调用外部能力（如 Cloudflare DNS、Grafana 查询等）。
+type MCPConnection struct {
+	ID        string `gorm:"primaryKey" json:"id"`
+	Name      string `gorm:"uniqueIndex" json:"name"` // 用作工具前缀 name/tool_name
+	Transport string `json:"transport"`                // "stdio" | "sse"
+	// stdio 字段
+	Command string         `json:"command,omitempty"`
+	Args    datatypes.JSON `gorm:"type:jsonb" json:"args,omitempty"` // ["arg1","arg2"]
+	Env     datatypes.JSON `gorm:"type:jsonb" json:"env,omitempty"`  // {"KEY":"val"} 传给子进程
+	// sse 字段
+	URL string `json:"url,omitempty"`
+	// auth 字段
+	AuthType  string `json:"auth_type,omitempty"`  // "none" | "bearer" | "oauth"
+	AuthToken string `json:"auth_token,omitempty"` // bearer 模式的静态 token
+	// OAuth 字段
+	OAuthClientID     string         `json:"oauth_client_id,omitempty"`
+	OAuthClientSecret string         `json:"oauth_client_secret,omitempty"`
+	OAuthScopes       string         `json:"oauth_scopes,omitempty"`                // 空格分隔
+	OAuthToken        datatypes.JSON `gorm:"type:jsonb" json:"oauth_token,omitempty"` // 持久化 Token JSON
+	//
+	Description string    `json:"description,omitempty"`
+	Enabled     bool      `gorm:"default:true" json:"enabled"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 // PluginConfig 是 Trigger 插件的运行时实例配置。
 // 插件"类型"由 Go 代码静态注册到 triggers.Registry；"实例配置"存本表，
 // Web 面板可启用/禁用、轮换 secret_token、改 JSONB 配置。

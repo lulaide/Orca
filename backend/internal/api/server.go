@@ -7,6 +7,7 @@ import (
 	"github.com/lulaide/orca/internal/dispatch"
 	"github.com/lulaide/orca/internal/kube"
 	"github.com/lulaide/orca/internal/llm"
+	"github.com/lulaide/orca/internal/mcp"
 	"github.com/lulaide/orca/internal/tools"
 	"github.com/lulaide/orca/internal/triggers"
 )
@@ -20,6 +21,7 @@ type Deps struct {
 	Registry *tools.Registry
 	Triggers *triggers.Registry
 	Router   *dispatch.EventRouter
+	MCP      *mcp.Manager
 }
 
 // NewRouter 创建并返回 gin 路由。
@@ -89,6 +91,16 @@ func NewRouter(d *Deps) *gin.Engine {
 		api.POST("/plugins/:name/disable", d.handleDisablePlugin)
 		api.POST("/plugins/:name/regenerate-token", d.handleRegeneratePluginToken)
 		api.GET("/plugins/:name/token", d.handleGetPluginToken)
+
+		// MCP: 外部 MCP Server 连接管理
+		api.GET("/mcp/connections", d.handleListMCPConnections)
+		api.POST("/mcp/connections", d.handleCreateMCPConnection)
+		api.GET("/mcp/connections/:id", d.handleGetMCPConnection)
+		api.PATCH("/mcp/connections/:id", d.handleUpdateMCPConnection)
+		api.DELETE("/mcp/connections/:id", d.handleDeleteMCPConnection)
+		api.POST("/mcp/connections/:id/reconnect", d.handleReconnectMCPConnection)
+		api.GET("/mcp/connections/:id/oauth/authorize", d.handleMCPOAuthAuthorize)
+		api.GET("/mcp/oauth/callback", d.handleMCPOAuthCallback)
 
 		// Webhooks: 所有 Trigger 插件共享入口
 		api.POST("/webhooks/:plugin", d.handleWebhook)

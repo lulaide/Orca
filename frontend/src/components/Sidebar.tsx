@@ -19,6 +19,7 @@ type Route =
   | { kind: 'investigation-list'; view: string }
   | { kind: 'events-list' }
   | { kind: 'event-detail'; id: string }
+  | { kind: 'settings' }
 
 interface Props {
   activeId: string | null
@@ -65,6 +66,7 @@ export function Sidebar({ activeId, onSelect, refreshToken, route }: Props) {
   const activeInvId = route?.kind === 'investigation' ? route.id : null
   const onInvListRoute = route?.kind === 'investigation-list'
   const onEventsListRoute = route?.kind === 'events-list' || route?.kind === 'event-detail'
+  const onSettingsRoute = route?.kind === 'settings'
 
   useEffect(() => {
     const load = () => getStatus().then(setStatus).catch(() => {})
@@ -286,6 +288,16 @@ export function Sidebar({ activeId, onSelect, refreshToken, route }: Props) {
           }
         />
         <div className="flex items-center justify-between pt-2 border-t border-[var(--color-border)] mt-2">
+          <button
+            type="button"
+            onClick={() => navigate('/settings')}
+            className={`text-[11px] font-mono transition-colors
+              ${onSettingsRoute ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-dim)] hover:text-[var(--color-text-muted)]'}`}
+          >
+            设置 · settings
+          </button>
+        </div>
+        <div className="flex items-center justify-between pt-2">
           {status?.tools && (
             <span className="text-[var(--color-text-dim)]">
               {status.tools.length} 个工具就绪

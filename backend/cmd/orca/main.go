@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/lulaide/orca/internal/api"
@@ -10,6 +11,7 @@ import (
 	"github.com/lulaide/orca/internal/dispatch"
 	"github.com/lulaide/orca/internal/kube"
 	"github.com/lulaide/orca/internal/llm"
+	"github.com/lulaide/orca/internal/mcp"
 	"github.com/lulaide/orca/internal/tools"
 	"github.com/lulaide/orca/internal/triggers"
 )
@@ -32,6 +34,7 @@ func main() {
 		&core.ConversationInvestigation{},
 		&core.Event{},
 		&core.PluginConfig{},
+		&core.MCPConnection{},
 	); err != nil {
 		log.Fatalf("Migration: %v", err)
 	}
@@ -82,6 +85,12 @@ func main() {
 	tools.RegisterInvestigationTools(reg)
 	log.Printf("Tools: registered %v", reg.Names())
 
+	// 6.5 MCP Client Manager（外接 MCP Server 的工具）
+	mcpMgr := mcp.NewManager(reg, gormDB)
+	if err := mcpMgr.LoadAll(context.Background()); err != nil {
+		log.Printf("MCP: load connections: %v", err)
+	}
+
 	// 7. Agent Engine
 	engine := llm.NewEngine(llmMgr, reg)
 
@@ -102,6 +111,7 @@ func main() {
 		Registry: reg,
 		Triggers: triggerReg,
 		Router:   eventRouter,
+		MCP:      mcpMgr,
 	})
 
 	addr := cfg.Server.Addr()

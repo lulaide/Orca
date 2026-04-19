@@ -372,6 +372,104 @@ export async function createInvestigationEntry(
   return res.json()
 }
 
+// ---- MCP Connections ----
+
+export type MCPTransport = 'stdio' | 'sse'
+export type MCPAuthType = 'none' | 'bearer' | 'oauth'
+export type MCPStatus = 'connected' | 'disconnected' | 'disabled' | 'needs_auth' | 'error'
+
+export interface MCPConnectionInfo {
+  id: string
+  name: string
+  transport: MCPTransport
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  url?: string
+  auth_type?: MCPAuthType
+  oauth_client_id?: string
+  oauth_scopes?: string
+  description?: string
+  enabled: boolean
+  status: MCPStatus
+  tools: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateMCPConnectionInput {
+  name: string
+  transport: MCPTransport
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  url?: string
+  auth_type?: MCPAuthType
+  auth_token?: string
+  oauth_client_id?: string
+  oauth_client_secret?: string
+  oauth_scopes?: string
+  description?: string
+}
+
+export async function listMCPConnections(): Promise<MCPConnectionInfo[]> {
+  const res = await fetch('/api/mcp/connections')
+  if (!res.ok) throw new Error(`mcp connections: ${res.status}`)
+  return res.json()
+}
+
+export async function createMCPConnection(body: CreateMCPConnectionInput): Promise<MCPConnectionInfo> {
+  const res = await fetch('/api/mcp/connections', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `create mcp connection: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function updateMCPConnection(id: string, patch: Record<string, unknown>): Promise<MCPConnectionInfo> {
+  const res = await fetch(`/api/mcp/connections/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `update mcp connection: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function deleteMCPConnection(id: string): Promise<void> {
+  const res = await fetch(`/api/mcp/connections/${id}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `delete mcp connection: ${res.status}`)
+  }
+}
+
+export async function reconnectMCPConnection(id: string): Promise<{ tools: string[] }> {
+  const res = await fetch(`/api/mcp/connections/${id}/reconnect`, { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `reconnect: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function getMCPOAuthURL(id: string): Promise<{ authorize_url?: string; status?: string }> {
+  const res = await fetch(`/api/mcp/connections/${id}/oauth/authorize`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `oauth authorize: ${res.status}`)
+  }
+  return res.json()
+}
+
 // ---- SSE streaming chat ----
 
 export type ChatStreamEvent =

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"log"
 
 	"github.com/lulaide/orca/internal/api"
@@ -15,6 +16,12 @@ import (
 	"github.com/lulaide/orca/internal/tools"
 	"github.com/lulaide/orca/internal/triggers"
 )
+
+// 前端静态文件。构建时 npm run build → 复制到 cmd/orca/dist/。
+// 目录为空时（本地开发）前端走 Vite dev server 代理，embed 不影响。
+//
+//go:embed all:dist
+var frontendFS embed.FS
 
 func main() {
 	// 1. 配置: 默认值 < config.yaml < 环境变量
@@ -104,6 +111,7 @@ func main() {
 
 	// 10. HTTP Server
 	router := api.NewRouter(&api.Deps{
+		FrontendFS: frontendFS,
 		DB:       gormDB,
 		LLM:      llmMgr,
 		Kube:     kubeMgr,

@@ -1,0 +1,12 @@
+.git
+.github
+.claude
+*.md
+!README.md
+backend/orca.exe
+backend/orca.exe~
+backend/config.yaml
+frontend/node_modules
+frontend/dist
+deploy
+docs

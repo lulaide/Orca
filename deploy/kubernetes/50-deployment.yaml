@@ -26,7 +26,7 @@ spec:
       automountServiceAccountToken: true
       containers:
         - name: orca
-          image: orca:latest               # TODO: 替换为实际镜像
+          image: orca:latest               # docker build -t orca:latest . 构建单镜像（含前端）
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

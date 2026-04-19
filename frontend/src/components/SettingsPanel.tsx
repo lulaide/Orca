@@ -1,11 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
+  getStatus,
+  updateLLMSettings,
+  connectKubeInCluster,
+  uploadKubeconfig,
+  disconnectKube,
   listMCPConnections,
   createMCPConnection,
   deleteMCPConnection,
   reconnectMCPConnection,
   updateMCPConnection,
   getMCPOAuthURL,
+  type StatusResponse,
   type MCPConnectionInfo,
   type MCPTransport,
 } from '../api'
@@ -15,22 +21,24 @@ interface Props {
 }
 
 export function SettingsPanel({ refreshToken }: Props) {
+  const [status, setStatus] = useState<StatusResponse | null>(null)
   const [conns, setConns] = useState<MCPConnectionInfo[] | null>(null)
-  const [err, setErr] = useState<string | null>(null)
+  const [mcpErr, setMcpErr] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
 
-  const reload = () => {
+  const reloadStatus = () => { getStatus().then(setStatus).catch(() => {}) }
+  const reloadMCP = () => {
     listMCPConnections()
-      .then((data) => { setConns(data); setErr(null) })
-      .catch((e) => setErr(e.message))
+      .then((data) => { setConns(data); setMcpErr(null) })
+      .catch((e) => setMcpErr(e.message))
   }
 
-  useEffect(() => { reload() }, [refreshToken])
+  useEffect(() => { reloadStatus(); reloadMCP() }, [refreshToken])
 
   // 监听 OAuth 弹窗回调
   useEffect(() => {
     const handler = (e: MessageEvent) => {
-      if (e.data?.type === 'orca-mcp-oauth-done') reload()
+      if (e.data?.type === 'orca-mcp-oauth-done') reloadMCP()
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
@@ -49,57 +57,255 @@ export function SettingsPanel({ refreshToken }: Props) {
       </header>
 
       <div className="flex-1 overflow-y-auto orca-grid">
-        <div className="max-w-3xl mx-auto px-6 py-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <div className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] mb-1">
-                mcp connections
+        <div className="max-w-3xl mx-auto px-6 py-8 space-y-10">
+          {/* ====== LLM 配置 ====== */}
+          <LLMSection status={status} onSaved={reloadStatus} />
+
+          {/* ====== Kubernetes 配置 ====== */}
+          <KubeSection status={status} onChanged={reloadStatus} />
+
+          {/* ====== MCP 连接 ====== */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <SectionLabel>mcp connections</SectionLabel>
+                <h2 className="font-serif-display text-[22px] text-[var(--color-text)]">外部工具连接</h2>
+                <p className="text-[12.5px] text-[var(--color-text-muted)] mt-0.5">
+                  连接外部 MCP Server，让 Agent 获得更多工具能力。
+                </p>
               </div>
-              <h1 className="font-serif-display text-[28px] leading-tight text-[var(--color-text)]">
-                外部工具连接
-              </h1>
-              <p className="text-[13px] text-[var(--color-text-muted)] mt-1">
-                连接外部 MCP Server，让 Agent 获得更多工具能力。
-              </p>
+              <button type="button" onClick={() => setShowAdd(!showAdd)}
+                className="h-8 px-3 rounded border border-[var(--color-border-strong)]
+                  bg-[var(--color-bg)] hover:bg-[var(--color-accent-soft)]
+                  hover:border-[var(--color-accent)]
+                  text-[13px] text-[var(--color-text)] font-mono transition-colors">
+                + 添加
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowAdd(!showAdd)}
-              className="h-8 px-3 rounded border border-[var(--color-border-strong)]
-                bg-[var(--color-bg)] hover:bg-[var(--color-accent-soft)]
-                hover:border-[var(--color-accent)]
-                text-[13px] text-[var(--color-text)] font-mono transition-colors"
-            >
-              + 添加
-            </button>
-          </div>
 
-          {err && (
-            <div className="text-[13px] text-[var(--color-danger)] font-mono mb-4">{err}</div>
-          )}
-
-          {showAdd && <AddConnectionForm onCreated={() => { setShowAdd(false); reload() }} />}
-
-          {conns === null && !err && (
-            <div className="text-[12.5px] text-[var(--color-text-dim)] italic">加载中…</div>
-          )}
-          {conns && conns.length === 0 && !showAdd && (
-            <div className="py-10 text-center">
-              <div className="text-[13px] text-[var(--color-text-dim)]">
+            {mcpErr && <div className="text-[13px] text-[var(--color-danger)] font-mono mb-4">{mcpErr}</div>}
+            {showAdd && <AddConnectionForm onCreated={() => { setShowAdd(false); reloadMCP() }} />}
+            {conns === null && !mcpErr && (
+              <div className="text-[12.5px] text-[var(--color-text-dim)] italic">加载中…</div>
+            )}
+            {conns && conns.length === 0 && !showAdd && (
+              <div className="py-6 text-center text-[13px] text-[var(--color-text-dim)]">
                 还没有配置任何 MCP 连接。点击"+ 添加"开始。
               </div>
-            </div>
-          )}
-          {conns && conns.length > 0 && (
-            <div className="space-y-2">
-              {conns.map((conn) => (
-                <ConnectionRow key={conn.id} conn={conn} onChanged={reload} />
-              ))}
-            </div>
-          )}
+            )}
+            {conns && conns.length > 0 && (
+              <div className="space-y-2">
+                {conns.map((conn) => (
+                  <ConnectionRow key={conn.id} conn={conn} onChanged={reloadMCP} />
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       </div>
     </div>
+  )
+}
+
+// ======================== LLM 配置 ========================
+
+function LLMSection({ status, onSaved }: { status: StatusResponse | null; onSaved: () => void }) {
+  const llm = status?.llm
+  const [editing, setEditing] = useState(false)
+  const [provider, setProvider] = useState('')
+  const [endpoint, setEndpoint] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [model, setModel] = useState('')
+  const [maxIter, setMaxIter] = useState(20)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  // 打开编辑时预填当前值
+  const startEdit = () => {
+    if (llm) {
+      setProvider(llm.provider || 'openai')
+      setEndpoint(llm.endpoint || '')
+      setModel(llm.model || '')
+      setMaxIter(llm.max_iterations || 20)
+    }
+    setApiKey('')
+    setErr(null)
+    setEditing(true)
+  }
+
+  const handleSave = async (e: FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    setErr(null)
+    try {
+      await updateLLMSettings({
+        provider,
+        endpoint: endpoint || undefined,
+        api_key: apiKey,
+        model,
+        max_iterations: maxIter,
+      })
+      setEditing(false)
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '保存失败')
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <section>
+      <SectionLabel>llm engine</SectionLabel>
+      <h2 className="font-serif-display text-[22px] text-[var(--color-text)] mb-3">LLM 配置</h2>
+
+      <div className="rounded-md border border-[var(--color-border)] p-4">
+        {/* 当前状态 */}
+        <div className="flex items-center gap-3 mb-3">
+          <StatusDot ok={!!llm?.configured} />
+          <span className="text-[13px] text-[var(--color-text)]">
+            {llm?.configured
+              ? `${llm.provider} / ${llm.model}`
+              : '未配置 — Agent 无法工作'}
+          </span>
+          {!editing && (
+            <button type="button" onClick={startEdit}
+              className="ml-auto text-[11px] font-mono text-[var(--color-accent)] hover:underline">
+              {llm?.configured ? '修改' : '配置'}
+            </button>
+          )}
+        </div>
+
+        {llm?.last_error && (
+          <div className="text-[12px] text-[var(--color-danger)] font-mono mb-3">
+            {llm.last_error}
+          </div>
+        )}
+
+        {editing && (
+          <form onSubmit={handleSave} className="space-y-3 border-t border-[var(--color-border)] pt-3">
+            {err && <div className="text-[12px] text-[var(--color-danger)] font-mono">{err}</div>}
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Provider" required>
+                <select value={provider} onChange={(e) => setProvider(e.target.value)} className={INPUT_CLS}>
+                  <option value="openai">OpenAI (兼容)</option>
+                  <option value="anthropic">Anthropic</option>
+                </select>
+              </Field>
+              <Field label="Model" required>
+                <input value={model} onChange={(e) => setModel(e.target.value)}
+                  placeholder="gpt-4o / claude-sonnet-4-20250514" className={INPUT_CLS} required />
+              </Field>
+            </div>
+
+            <Field label="Endpoint URL（留空使用默认）">
+              <input value={endpoint} onChange={(e) => setEndpoint(e.target.value)}
+                placeholder={provider === 'anthropic' ? 'https://api.anthropic.com/' : 'https://api.openai.com/v1'}
+                className={INPUT_CLS} />
+            </Field>
+
+            <Field label="API Key" required>
+              <input value={apiKey} onChange={(e) => setApiKey(e.target.value)}
+                type="password" placeholder="sk-..." className={INPUT_CLS} required />
+            </Field>
+
+            <Field label="最大迭代轮数">
+              <input value={maxIter} onChange={(e) => setMaxIter(Number(e.target.value))}
+                type="number" min={1} max={50} className={INPUT_CLS} />
+            </Field>
+
+            <div className="flex items-center gap-2">
+              <SubmitBtn disabled={busy || !provider || !model || !apiKey}>
+                {busy ? '保存中…' : '保存'}
+              </SubmitBtn>
+              <CancelBtn onClick={() => setEditing(false)} />
+            </div>
+          </form>
+        )}
+      </div>
+    </section>
+  )
+}
+
+// ======================== Kubernetes 配置 ========================
+
+function KubeSection({ status, onChanged }: { status: StatusResponse | null; onChanged: () => void }) {
+  const kube = status?.kubernetes
+  const [showUpload, setShowUpload] = useState(false)
+  const [kubeconfigText, setKubeconfigText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const handleInCluster = async () => {
+    setBusy(true); setErr(null)
+    try { await connectKubeInCluster(); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : '连接失败') }
+    finally { setBusy(false) }
+  }
+
+  const handleUpload = async (e: FormEvent) => {
+    e.preventDefault()
+    setBusy(true); setErr(null)
+    try { await uploadKubeconfig(kubeconfigText); setShowUpload(false); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : '上传失败') }
+    finally { setBusy(false) }
+  }
+
+  const handleDisconnect = async () => {
+    setBusy(true); setErr(null)
+    try { await disconnectKube(); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : '断开失败') }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <section>
+      <SectionLabel>kubernetes</SectionLabel>
+      <h2 className="font-serif-display text-[22px] text-[var(--color-text)] mb-3">Kubernetes 连接</h2>
+
+      <div className="rounded-md border border-[var(--color-border)] p-4">
+        <div className="flex items-center gap-3 mb-3">
+          <StatusDot ok={!!kube?.connected} />
+          <span className="text-[13px] text-[var(--color-text)]">
+            {kube?.connected
+              ? `已连接 · ${kube.mode} · ${kube.server_version}`
+              : kube?.mode === 'unset' ? '未配置' : `${kube?.mode || '未连接'}`}
+          </span>
+        </div>
+
+        {kube?.last_error && (
+          <div className="text-[12px] text-[var(--color-danger)] font-mono mb-3">{kube.last_error}</div>
+        )}
+        {err && <div className="text-[12px] text-[var(--color-danger)] font-mono mb-3">{err}</div>}
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <ActionBtn onClick={handleInCluster} disabled={busy}>
+            使用集群内 ServiceAccount
+          </ActionBtn>
+          <ActionBtn onClick={() => setShowUpload(!showUpload)} disabled={busy}>
+            上传 Kubeconfig
+          </ActionBtn>
+          {kube?.connected && (
+            <ActionBtn onClick={handleDisconnect} disabled={busy} danger>断开</ActionBtn>
+          )}
+        </div>
+
+        {showUpload && (
+          <form onSubmit={handleUpload} className="mt-3 border-t border-[var(--color-border)] pt-3 space-y-3">
+            <Field label="粘贴 Kubeconfig 内容（YAML）" required>
+              <textarea value={kubeconfigText} onChange={(e) => setKubeconfigText(e.target.value)}
+                rows={8} placeholder="apiVersion: v1&#10;kind: Config&#10;clusters:&#10;  ..."
+                className={INPUT_CLS + ' resize-y'} required />
+            </Field>
+            <div className="flex items-center gap-2">
+              <SubmitBtn disabled={busy || !kubeconfigText.trim()}>
+                {busy ? '连接中…' : '连接'}
+              </SubmitBtn>
+              <CancelBtn onClick={() => setShowUpload(false)} />
+            </div>
+          </form>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -253,6 +459,47 @@ function ActionBtn({ onClick, disabled, danger, children }: {
         }`}
     >
       {children}
+    </button>
+  )
+}
+
+// ======================== 共享 UI ========================
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] mb-1">
+      {children}
+    </div>
+  )
+}
+
+function StatusDot({ ok }: { ok: boolean }) {
+  return (
+    <span className={`w-2 h-2 rounded-full shrink-0 ${
+      ok ? 'bg-[var(--color-ok)] shadow-[0_0_5px_var(--color-ok)]' : 'bg-[var(--color-warn)]'
+    }`} />
+  )
+}
+
+function SubmitBtn({ disabled, children }: { disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button type="submit" disabled={disabled}
+      className="h-8 px-4 rounded bg-[var(--color-accent)] text-[var(--color-bg)]
+        hover:bg-[var(--color-accent-hover)]
+        disabled:opacity-50 disabled:cursor-not-allowed
+        font-mono text-[11px] uppercase tracking-[0.15em] transition-colors">
+      {children}
+    </button>
+  )
+}
+
+function CancelBtn({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="h-8 px-3 rounded border border-[var(--color-border-strong)]
+        text-[var(--color-text-muted)] hover:bg-[var(--color-surface)]
+        font-mono text-[11px] transition-colors">
+      取消
     </button>
   )
 }

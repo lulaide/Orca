@@ -58,6 +58,62 @@ export async function getStatus(): Promise<StatusResponse> {
   return res.json()
 }
 
+// ---- Settings: LLM ----
+
+export interface LLMSettingsInput {
+  provider: string
+  endpoint?: string
+  api_key: string
+  model: string
+  max_iterations?: number
+}
+
+export async function updateLLMSettings(body: LLMSettingsInput): Promise<StatusResponse['llm']> {
+  const res = await fetch('/api/settings/llm', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `update llm: ${res.status}`)
+  }
+  return res.json()
+}
+
+// ---- Settings: Kubernetes ----
+
+export async function connectKubeInCluster(): Promise<StatusResponse['kubernetes']> {
+  const res = await fetch('/api/settings/kubernetes/in-cluster', { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `in-cluster: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function uploadKubeconfig(content: string): Promise<StatusResponse['kubernetes']> {
+  const res = await fetch('/api/settings/kubernetes/kubeconfig', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `kubeconfig: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function disconnectKube(): Promise<StatusResponse['kubernetes']> {
+  const res = await fetch('/api/settings/kubernetes', { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `disconnect kube: ${res.status}`)
+  }
+  return res.json()
+}
+
 // ---- Cluster metrics (Lens 风格 CPU/Memory/Pods 三卡) ----
 
 export interface ClusterMetrics {

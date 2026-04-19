@@ -1,0 +1,96 @@
+# Orca Agent 主部署。
+#
+# 零配置启动：apply 即可运行，LLM / K8s 配置在 Web Settings 页面完成。
+# 部署前只需替换 image 为你构建并推送的镜像地址。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orca
+  namespace: orca-system
+  labels:
+    app.kubernetes.io/name: orca
+    app.kubernetes.io/component: agent
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: orca
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: orca
+    spec:
+      serviceAccountName: orca
+      automountServiceAccountToken: true
+      containers:
+        - name: orca
+          image: orca:latest               # TODO: 替换为实际镜像
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            # DB 连接（非敏感部分从 ConfigMap，密码从 Secret）
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: orca-config
+                  key: db_host
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: orca-config
+                  key: db_port
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: orca-config
+                  key: db_name
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: orca-config
+                  key: db_user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: orca-secrets
+                  key: db_password
+            - name: HTTP_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: orca-config
+                  key: http_port
+            # LLM 配置不从环境变量注入 — 在 Web Settings 页面配置，
+            # 存入 DB settings 表，重启后自动加载。
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

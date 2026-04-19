@@ -1,0 +1,18 @@
+# 暴露 Orca 的 HTTP + WebSocket 入口。
+# 集群外访问（Web 前端 / IM Bot Webhook 回调）通过 Ingress 或 LoadBalancer 转发到这个 Service。
+apiVersion: v1
+kind: Service
+metadata:
+  name: orca
+  namespace: orca-system
+  labels:
+    app.kubernetes.io/name: orca
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: orca
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

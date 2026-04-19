@@ -13,7 +13,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ---- Stage 2: 后端构建 ----
-FROM golang:1.24-alpine AS backend
+FROM golang:1.26-alpine AS backend
 WORKDIR /app/backend
 # 先复制 go.mod/go.sum 利用 Docker layer cache
 COPY backend/go.mod backend/go.sum ./

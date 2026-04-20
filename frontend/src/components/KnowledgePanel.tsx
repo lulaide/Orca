@@ -4,7 +4,8 @@ import remarkGfm from 'remark-gfm'
 import {
   listKnowledgePages,
   getKnowledgePage,
-  streamScanCluster,
+  startScan,
+  streamScanProgress,
   updateKnowledgePage,
   type KnowledgePage,
 } from '../api'
@@ -30,7 +31,31 @@ export function KnowledgePanel() {
     listKnowledgePages().then(setPages).catch(() => {})
   }
 
-  useEffect(() => { reload() }, [])
+  useEffect(() => {
+    reload()
+    // 自动检测是否有正在进行的扫描，有就重连
+    const handle = streamScanProgress({
+      onMessage: (msg) => {
+        setScanning(true)
+        setShowLog(true)
+        setScanLog((prev) => [...prev, {
+          id: ++logIdRef.current,
+          role: (msg.role as string) || 'unknown',
+          content: msg.content as string,
+          tool_name: msg.tool_name as string,
+          tool_calls: msg.tool_calls as { name: string; arguments: string }[],
+        }])
+      },
+      onDone: () => { setScanning(false); reload() },
+      onError: (err) => {
+        setScanLog((prev) => [...prev, { id: ++logIdRef.current, role: 'error', content: err }])
+        setScanning(false)
+      },
+      onNoScan: () => { /* 没有进行中的扫描，什么都不做 */ },
+    })
+    scanAbortRef.current = handle
+    return () => handle.abort()
+  }, [])
 
   // 从 URL 读取当前 slug
   useEffect(() => {
@@ -58,12 +83,19 @@ export function KnowledgePanel() {
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
-  const handleScan = () => {
+  const handleScan = async () => {
+    try {
+      await startScan()
+    } catch (e) {
+      setScanLog([{ id: ++logIdRef.current, role: 'error', content: e instanceof Error ? e.message : '启动失败' }])
+      setShowLog(true)
+      return
+    }
     setScanning(true)
     setScanLog([])
     setShowLog(true)
 
-    const handle = streamScanCluster({
+    const handle = streamScanProgress({
       onMessage: (msg) => {
         setScanLog((prev) => [...prev, {
           id: ++logIdRef.current,

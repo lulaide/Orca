@@ -471,19 +471,33 @@ export async function updateKnowledgePage(slug: string, content: string): Promis
   return res.json()
 }
 
-/** SSE 流式扫描，返回 abort 函数 */
-export function streamScanCluster(handlers: {
+/** 启动扫描（POST），返回后通过 streamScanProgress 订阅进度 */
+export async function startScan(): Promise<{ status: string }> {
+  const res = await fetch('/api/knowledge/scan', { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || `scan: ${res.status}`)
+  }
+  return res.json()
+}
+
+/** SSE 订阅扫描进度（GET），支持重连回放历史。返回 abort 函数 */
+export function streamScanProgress(handlers: {
   onMessage: (msg: Record<string, unknown>) => void
   onDone: (summary: string) => void
   onError: (err: string) => void
+  onNoScan?: () => void
 }): { abort: () => void } {
   const ctrl = new AbortController()
 
-  fetch('/api/knowledge/scan', {
-    method: 'POST',
+  fetch('/api/knowledge/scan/stream', {
     headers: { Accept: 'text/event-stream' },
     signal: ctrl.signal,
   }).then(async (res) => {
+    if (res.status === 204) {
+      handlers.onNoScan?.()
+      return
+    }
     if (!res.ok || !res.body) {
       const body = await res.json().catch(() => ({}))
       handlers.onError((body as { error?: string }).error || `scan: ${res.status}`)

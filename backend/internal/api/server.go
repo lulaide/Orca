@@ -101,6 +101,7 @@ func NewRouter(d *Deps) *gin.Engine {
 
 		// Knowledge: 知识库文档
 		api.POST("/knowledge/scan", d.handleScanCluster)
+		api.GET("/knowledge/scan/stream", d.handleScanStream)
 		api.GET("/knowledge/pages", d.handleListKnowledgePages)
 		api.GET("/knowledge/pages/*slug", d.handleGetKnowledgePage)
 		api.PATCH("/knowledge/pages/*slug", d.handleUpdateKnowledgePage)

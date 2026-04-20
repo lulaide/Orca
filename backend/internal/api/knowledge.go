@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/cloudwego/eino/schema"
@@ -14,6 +15,80 @@ import (
 	"github.com/lulaide/orca/internal/knowledge"
 	"github.com/lulaide/orca/internal/llm"
 )
+
+// scanState 维护一次知识库扫描的后台状态。
+// 多个 SSE 客户端可以订阅同一次扫描的消息流。
+type scanState struct {
+	mu        sync.Mutex
+	running   bool
+	messages  []json.RawMessage // 已产生的所有 SSE 消息（event+data JSON）
+	done      bool
+	subs      []chan struct{}   // 新消息通知
+}
+
+type sseFrame struct {
+	Event string `json:"event"`
+	Data  any    `json:"data"`
+}
+
+var globalScan = &scanState{}
+
+func (s *scanState) start() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.running {
+		return false // 已在运行
+	}
+	s.running = true
+	s.done = false
+	s.messages = nil
+	s.subs = nil
+	return true
+}
+
+func (s *scanState) push(event string, data any) {
+	frame := sseFrame{Event: event, Data: data}
+	j, _ := json.Marshal(frame)
+	s.mu.Lock()
+	s.messages = append(s.messages, j)
+	if event == "done" || event == "error" {
+		s.done = true
+		s.running = false
+	}
+	subs := append([]chan struct{}{}, s.subs...)
+	s.mu.Unlock()
+	// 通知所有订阅者
+	for _, ch := range subs {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (s *scanState) subscribe() (ch chan struct{}, unsub func()) {
+	ch = make(chan struct{}, 1)
+	s.mu.Lock()
+	s.subs = append(s.subs, ch)
+	s.mu.Unlock()
+	return ch, func() {
+		s.mu.Lock()
+		for i, c := range s.subs {
+			if c == ch {
+				s.subs = append(s.subs[:i], s.subs[i+1:]...)
+				break
+			}
+		}
+		s.mu.Unlock()
+	}
+}
+
+func (s *scanState) snapshot() (msgs []json.RawMessage, isDone bool, isRunning bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	msgs = append([]json.RawMessage{}, s.messages...)
+	return msgs, s.done, s.running
+}
 
 const scanSystemPrompt = `你是 Orca 的知识库文档生成 Agent。你的任务是探索 Kubernetes 集群，生成一套结构化的**集群架构知识文档**。
 
@@ -76,8 +151,8 @@ const scanSystemPrompt = `你是 Orca 的知识库文档生成 Agent。你的任
 
 最后用中文简短总结：生成了多少篇文档、覆盖了哪些 namespace。`
 
-// handleScanCluster 通过 Agent Loop 自主探索集群并生成知识文档。
-// SSE 流式返回 Agent 的每步操作（工具调用 + 工具结果），前端实时展示进度。
+// handleScanCluster 启动一次后台知识库扫描。
+// 如果已在运行则返回 409。启动后立即返回，前端通过 /api/knowledge/scan/stream 订阅进度。
 func (d *Deps) handleScanCluster(c *gin.Context) {
 	if d.Engine == nil || d.LLM.ChatModel() == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "LLM 未配置"})
@@ -88,38 +163,41 @@ func (d *Deps) handleScanCluster(c *gin.Context) {
 		return
 	}
 
+	if !globalScan.start() {
+		c.JSON(http.StatusConflict, gin.H{"error": "扫描正在进行中"})
+		return
+	}
+
 	// 清空旧文档（全量重建）
 	_ = knowledge.DeleteAllPages(d.DB)
 
-	// SSE headers — 前端用来观察进度，但 Agent 在后台独立运行，
-	// 浏览器关闭不影响生成。
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("Access-Control-Allow-Origin", "*")
-	c.Writer.Flush()
-
-	// Agent 用独立的 background context，不绑定 HTTP 请求生命周期。
 	bgCtx, bgCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 
-	// SSE emit：如果 HTTP 连接还活着就推，断了就静默跳过。
-	clientGone := c.Request.Context().Done()
-	emit := func(event string, data any) {
-		select {
-		case <-clientGone:
-			return // 浏览器已断开，不推
-		default:
-		}
-		j, _ := json.Marshal(data)
-		fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", event, j)
-		c.Writer.Flush()
-	}
-
-	// 后台 goroutine 跑 Agent，SSE 只是观察窗口。
-	done := make(chan struct{})
 	go func() {
 		defer bgCancel()
-		defer close(done)
+
+		buildMsg := func(m *schema.Message) map[string]any {
+			msg := map[string]any{
+				"role":    string(m.Role),
+				"content": m.Content,
+			}
+			if len(m.ToolCalls) > 0 {
+				calls := make([]map[string]string, len(m.ToolCalls))
+				for i, tc := range m.ToolCalls {
+					calls[i] = map[string]string{
+						"id":        tc.ID,
+						"name":      tc.Function.Name,
+						"arguments": tc.Function.Arguments,
+					}
+				}
+				msg["tool_calls"] = calls
+			}
+			if m.ToolCallID != "" {
+				msg["tool_call_id"] = m.ToolCallID
+				msg["tool_name"] = m.ToolName
+			}
+			return msg
+		}
 
 		result, err := d.Engine.Run(bgCtx, llm.RunInput{
 			SystemPrompt: scanSystemPrompt,
@@ -128,50 +206,86 @@ func (d *Deps) handleScanCluster(c *gin.Context) {
 				if m == nil {
 					return
 				}
-				msg := map[string]any{
-					"role":    string(m.Role),
-					"content": m.Content,
-				}
-				if len(m.ToolCalls) > 0 {
-					calls := make([]map[string]string, len(m.ToolCalls))
-					for i, tc := range m.ToolCalls {
-						calls[i] = map[string]string{
-							"id":        tc.ID,
-							"name":      tc.Function.Name,
-							"arguments": tc.Function.Arguments,
-						}
-					}
-					msg["tool_calls"] = calls
-				}
-				if m.ToolCallID != "" {
-					msg["tool_call_id"] = m.ToolCallID
-					msg["tool_name"] = m.ToolName
-				}
-				emit("message", msg)
+				globalScan.push("message", buildMsg(m))
 			},
 		})
 
 		if err != nil {
-			emit("error", map[string]string{"error": err.Error()})
+			globalScan.push("error", map[string]string{"error": err.Error()})
 			return
 		}
 		summary := ""
 		if result != nil && result.Final != nil {
 			summary = result.Final.Content
 		}
-		emit("done", map[string]any{
+		globalScan.push("done", map[string]any{
 			"summary":    summary,
 			"iterations": result.Iterations,
 		})
 	}()
 
-	// 等 Agent 完成或浏览器断开（先发生哪个）。
-	// Agent 在后台继续跑，SSE 连接可以提前关闭。
-	select {
-	case <-done:
-		// Agent 完成，SSE 正常结束
-	case <-clientGone:
-		// 浏览器关了，但 Agent 继续跑，HTTP handler 返回即可
+	c.JSON(http.StatusAccepted, gin.H{"status": "started"})
+}
+
+// handleScanStream SSE 订阅扫描进度。
+// 先回放已有消息，然后实时推送新消息，直到扫描完成或客户端断开。
+// 如果没有正在进行的扫描且没有历史消息，返回 204。
+func (d *Deps) handleScanStream(c *gin.Context) {
+	msgs, isDone, isRunning := globalScan.snapshot()
+	if !isRunning && len(msgs) == 0 {
+		c.JSON(http.StatusNoContent, nil)
+		return
+	}
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Writer.Flush()
+
+	clientGone := c.Request.Context().Done()
+
+	emitRaw := func(raw json.RawMessage) {
+		var frame sseFrame
+		_ = json.Unmarshal(raw, &frame)
+		j, _ := json.Marshal(frame.Data)
+		fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", frame.Event, j)
+		c.Writer.Flush()
+	}
+
+	// 回放历史消息
+	for _, m := range msgs {
+		select {
+		case <-clientGone:
+			return
+		default:
+		}
+		emitRaw(m)
+	}
+
+	if isDone {
+		return // 已完成，不需要等
+	}
+
+	// 订阅新消息
+	notify, unsub := globalScan.subscribe()
+	defer unsub()
+
+	cursor := len(msgs)
+	for {
+		select {
+		case <-clientGone:
+			return
+		case <-notify:
+			newMsgs, done, _ := globalScan.snapshot()
+			for i := cursor; i < len(newMsgs); i++ {
+				emitRaw(newMsgs[i])
+			}
+			cursor = len(newMsgs)
+			if done {
+				return
+			}
+		}
 	}
 }
 

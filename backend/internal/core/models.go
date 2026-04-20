@@ -103,6 +103,18 @@ type Event struct {
 	CreatedAt      time.Time `gorm:"index" json:"created_at"`
 }
 
+// KnowledgePage 是知识库中的一篇文档。多篇文档通过 parent_slug 组成树形结构。
+// Agent 扫描集群时自动生成（概述 / namespace / 服务 / 架构关系等），
+// 用户也可以手动编辑 content。
+type KnowledgePage struct {
+	Slug       string    `gorm:"primaryKey" json:"slug"`         // 唯一路径，如 "overview"、"ns/kube-system"、"svc/kube-system/coredns"
+	Title      string    `json:"title"`
+	Content    string    `gorm:"type:text" json:"content"`       // Markdown
+	ParentSlug string    `gorm:"index" json:"parent_slug"`       // 父页面 slug（空表示顶级）
+	SortOrder  int       `json:"sort_order"`                     // 同级排序
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
 // MCPConnection 是一个外部 MCP Server 的连接配置。
 // Orca 作为 MCP Client 连接到这些 Server，发现并注册它们提供的工具，
 // 让 Agent 在推理时能调用外部能力（如 Cloudflare DNS、Grafana 查询等）。

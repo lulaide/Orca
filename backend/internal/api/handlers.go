@@ -15,6 +15,7 @@ import (
 	"github.com/lulaide/orca/internal/config"
 	"github.com/lulaide/orca/internal/core"
 	"github.com/lulaide/orca/internal/db"
+	"github.com/lulaide/orca/internal/knowledge"
 	"github.com/lulaide/orca/internal/llm"
 	"github.com/lulaide/orca/internal/tools"
 )
@@ -385,8 +386,11 @@ func (d *Deps) handleChat(c *gin.Context) {
 		}
 		augmentedUserMessage = core.BuildReferencedInvestigationsPrefix(coreRefs) + req.Message
 	}
+	// 注入集群已知服务上下文（如果已扫描过）
+	systemPrompt := chatSystemPrompt + knowledge.BuildServiceContext(d.DB)
+
 	result, runErr := d.Engine.Run(ctx, llm.RunInput{
-		SystemPrompt: chatSystemPrompt,
+		SystemPrompt: systemPrompt,
 		UserMessage:  augmentedUserMessage,
 		History:      einoHistory,
 		OnMessage: func(m *schema.Message) {

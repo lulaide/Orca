@@ -99,6 +99,12 @@ func NewRouter(d *Deps) *gin.Engine {
 		api.POST("/plugins/:name/regenerate-token", d.handleRegeneratePluginToken)
 		api.GET("/plugins/:name/token", d.handleGetPluginToken)
 
+		// Knowledge: 知识库文档
+		api.POST("/knowledge/scan", d.handleScanCluster)
+		api.GET("/knowledge/pages", d.handleListKnowledgePages)
+		api.GET("/knowledge/pages/*slug", d.handleGetKnowledgePage)
+		api.PATCH("/knowledge/pages/*slug", d.handleUpdateKnowledgePage)
+
 		// MCP: 外部 MCP Server 连接管理
 		api.GET("/mcp/connections", d.handleListMCPConnections)
 		api.POST("/mcp/connections", d.handleCreateMCPConnection)

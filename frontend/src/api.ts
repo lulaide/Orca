@@ -433,6 +433,108 @@ export async function createInvestigationEntry(
   return res.json()
 }
 
+// ---- Knowledge Pages ----
+
+export interface KnowledgePage {
+  slug: string
+  title: string
+  content: string
+  parent_slug: string
+  sort_order: number
+  updated_at: string
+}
+
+export interface ScanStreamEvent {
+  type: 'message' | 'done' | 'error'
+  data: unknown
+}
+
+export async function listKnowledgePages(): Promise<KnowledgePage[]> {
+  const res = await fetch('/api/knowledge/pages')
+  if (!res.ok) throw new Error(`pages: ${res.status}`)
+  return res.json()
+}
+
+export async function getKnowledgePage(slug: string): Promise<KnowledgePage> {
+  const res = await fetch(`/api/knowledge/pages/${slug}`)
+  if (!res.ok) throw new Error(`page: ${res.status}`)
+  return res.json()
+}
+
+export async function updateKnowledgePage(slug: string, content: string): Promise<KnowledgePage> {
+  const res = await fetch(`/api/knowledge/pages/${slug}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  })
+  if (!res.ok) throw new Error(`update page: ${res.status}`)
+  return res.json()
+}
+
+/** SSE 流式扫描，返回 abort 函数 */
+export function streamScanCluster(handlers: {
+  onMessage: (msg: Record<string, unknown>) => void
+  onDone: (summary: string) => void
+  onError: (err: string) => void
+}): { abort: () => void } {
+  const ctrl = new AbortController()
+
+  fetch('/api/knowledge/scan', {
+    method: 'POST',
+    headers: { Accept: 'text/event-stream' },
+    signal: ctrl.signal,
+  }).then(async (res) => {
+    if (!res.ok || !res.body) {
+      const body = await res.json().catch(() => ({}))
+      handlers.onError((body as { error?: string }).error || `scan: ${res.status}`)
+      return
+    }
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+
+    const handleFrame = (frame: string) => {
+      let event = 'message'
+      const dataLines: string[] = []
+      for (const rawLine of frame.split('\n')) {
+        const line = rawLine.replace(/\r$/, '')
+        if (!line || line.startsWith(':')) continue
+        const idx = line.indexOf(':')
+        const field = idx === -1 ? line : line.slice(0, idx)
+        const value = idx === -1 ? '' : line.slice(idx + 1).replace(/^ /, '')
+        if (field === 'event') event = value
+        else if (field === 'data') dataLines.push(value)
+      }
+      if (dataLines.length === 0) return
+      let data: unknown
+      try { data = JSON.parse(dataLines.join('\n')) } catch { return }
+
+      if (event === 'message') handlers.onMessage(data as Record<string, unknown>)
+      else if (event === 'done') handlers.onDone((data as { summary?: string }).summary || '')
+      else if (event === 'error') handlers.onError((data as { error?: string }).error || 'unknown')
+    }
+
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let sep: number
+      while ((sep = buffer.indexOf('\n\n')) !== -1) {
+        const frame = buffer.slice(0, sep)
+        buffer = buffer.slice(sep + 2)
+        if (frame.length > 0) handleFrame(frame)
+      }
+    }
+    if (buffer.trim()) handleFrame(buffer.trim())
+  }).catch((err) => {
+    if ((err as { name?: string })?.name !== 'AbortError') {
+      handlers.onError(err instanceof Error ? err.message : 'network error')
+    }
+  })
+
+  return { abort: () => ctrl.abort() }
+}
+
 // ---- MCP Connections ----
 
 export type MCPTransport = 'stdio' | 'sse'

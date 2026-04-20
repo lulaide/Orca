@@ -19,6 +19,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/lulaide/orca/internal/core"
+	"github.com/lulaide/orca/internal/knowledge"
 	"github.com/lulaide/orca/internal/llm"
 	"github.com/lulaide/orca/internal/tools"
 )
@@ -74,7 +75,7 @@ func (r *EventRouter) runAgent(ev *core.Event) {
 		}
 	}
 
-	systemPrompt := buildAutoModeSystemPrompt(ev)
+	systemPrompt := buildAutoModeSystemPrompt(ev) + knowledge.BuildServiceContext(r.db)
 	initialUserMsg := buildInitialUserMessage(ev)
 
 	// 把初始 user 消息写入会话，让前端能看见"触发 Agent 的那段输入"。

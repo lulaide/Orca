@@ -143,7 +143,7 @@ export function HomePanel({ onSubmit, focusSignal }: Props) {
           <div className="text-[11.5px] uppercase tracking-[0.25em] text-[var(--color-text-dim)] font-mono mb-3">
             {todayStr()}
           </div>
-          <h1 className="font-serif-display text-[48px] leading-[1.02] text-[var(--color-text)] mb-2">
+          <h1 className="font-semibold text-[48px] leading-[1.02] text-[var(--color-text)] mb-2">
             {greeting()}
           </h1>
           <p className="text-[14px] text-[var(--color-text-muted)] max-w-md leading-relaxed">
@@ -393,7 +393,7 @@ function PendingInvestigationsPanel() {
           </div>
         ) : items.length === 0 ? (
           <div className="px-4 py-6 text-center">
-            <div className="font-serif-display text-[18px] text-[var(--color-text-muted)] mb-1">
+            <div className="font-semibold text-[18px] text-[var(--color-text-muted)] mb-1">
               一切安好
             </div>
             <div className="text-[11.5px] font-mono text-[var(--color-text-dim)]">

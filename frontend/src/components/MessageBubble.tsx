@@ -45,7 +45,7 @@ export function AssistantTurn({ messages, toolOutputs }: AssistantTurnProps) {
     <div className="mb-7 orca-fade-in pl-4 border-l-2 border-[var(--color-accent)]/60">
       <div className="flex items-center gap-2 mb-2 -ml-[22px]">
         <span className="w-4 h-4 rounded-full bg-[var(--color-bg)] border-2 border-[var(--color-accent)] shadow-[0_0_0_3px_var(--color-bg)]" />
-        <span className="font-serif-display text-[15px] text-[var(--color-text-muted)]">orca</span>
+        <span className="font-semibold text-[15px] text-[var(--color-text-muted)]">orca</span>
       </div>
       <div className="space-y-1" data-assistant-content="true">
         {messages.map((m) => (

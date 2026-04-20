@@ -22,10 +22,7 @@ export function TriggersPanel() {
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto px-8 py-8">
         <div className="mb-6">
-          <div className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] mb-1">
-            trigger plugins
-          </div>
-          <h1 className="font-serif-display text-[28px] text-[var(--color-text)]">触发器</h1>
+          <h1 className="text-[22px] font-semibold text-[var(--color-text)]">触发器</h1>
           <p className="text-[13px] text-[var(--color-text-muted)] mt-1">
             管理告警源 Webhook 插件。启用后会生成 Webhook URL 和 Secret Token，
             配置到告警源（如 UptimeKuma）的通知设置中。

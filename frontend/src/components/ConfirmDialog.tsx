@@ -94,7 +94,7 @@ export function ConfirmDialog({
         <div className="px-5 pt-5 pb-4">
           <h2
             id="confirm-dialog-title"
-            className="font-serif-display text-[24px] leading-tight text-[var(--color-text)] mb-2"
+            className="font-semibold text-[24px] leading-tight text-[var(--color-text)] mb-2"
           >
             {title}
           </h2>

@@ -174,7 +174,7 @@ function InvestigationRow({ inv }: { inv: Investigation }) {
       <div className="flex items-center gap-2 mb-1">
         <SeverityDot severity={inv.severity} />
         <span
-          className={`font-serif-display text-[17px] text-[var(--color-text)] flex-1 truncate
+          className={`font-semibold text-[17px] text-[var(--color-text)] flex-1 truncate
             ${archived ? 'line-through decoration-[var(--color-text-dim)]' : ''}`}
         >
           {inv.title}
@@ -206,7 +206,7 @@ function EmptyView({ onCreate }: { onCreate: () => void }) {
       <div className="text-[11.5px] uppercase tracking-[0.25em] text-[var(--color-text-dim)] font-mono mb-3">
         empty · 空
       </div>
-      <h2 className="font-serif-display text-[32px] leading-tight text-[var(--color-text)] mb-3">
+      <h2 className="font-semibold text-[32px] leading-tight text-[var(--color-text)] mb-3">
         还没有任何调查
       </h2>
       <p className="text-[13px] text-[var(--color-text-muted)] mb-5 leading-relaxed max-w-md">

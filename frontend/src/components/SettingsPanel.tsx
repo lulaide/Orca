@@ -21,10 +21,7 @@ export function SettingsPanel({ refreshToken }: Props) {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto px-8 py-8 space-y-10">
-        <div>
-          <div className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] mb-1">settings</div>
-          <h1 className="font-serif-display text-[28px] text-[var(--color-text)]">设置</h1>
-        </div>
+        <h1 className="text-[22px] font-semibold text-[var(--color-text)]">设置</h1>
         <LLMSection status={status} onSaved={reloadStatus} />
         <KubeSection status={status} onChanged={reloadStatus} />
       </div>
@@ -68,8 +65,7 @@ function LLMSection({ status, onSaved }: { status: StatusResponse | null; onSave
 
   return (
     <section>
-      <SectionLabel>llm engine</SectionLabel>
-      <h2 className="font-serif-display text-[22px] text-[var(--color-text)] mb-3">LLM 配置</h2>
+      <h2 className="text-[16px] font-semibold text-[var(--color-text)] mb-3">LLM 配置</h2>
       <div className="rounded-md border border-[var(--color-border)] p-4">
         <div className="flex items-center gap-3 mb-3">
           <StatusDot ok={!!llm?.configured} />
@@ -156,8 +152,7 @@ function KubeSection({ status, onChanged }: { status: StatusResponse | null; onC
 
   return (
     <section>
-      <SectionLabel>kubernetes</SectionLabel>
-      <h2 className="font-serif-display text-[22px] text-[var(--color-text)] mb-3">Kubernetes 连接</h2>
+      <h2 className="text-[16px] font-semibold text-[var(--color-text)] mb-3">Kubernetes 连接</h2>
       <div className="rounded-md border border-[var(--color-border)] p-4">
         <div className="flex items-center gap-3 mb-3">
           <StatusDot ok={!!kube?.connected} />
@@ -196,9 +191,6 @@ function KubeSection({ status, onChanged }: { status: StatusResponse | null; onC
 
 // ---- Shared ----
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] mb-1">{children}</div>
-}
 function StatusDot({ ok }: { ok: boolean }) {
   return <span className={`w-2 h-2 rounded-full shrink-0 ${ok ? 'bg-[var(--color-ok)]' : 'bg-[var(--color-warn)]'}`} />
 }

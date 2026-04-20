@@ -121,7 +121,7 @@ export function Sidebar({ activeId, onSelect, refreshToken, route }: Props) {
       {/* Brand */}
       <div className="px-5 pt-6 pb-4">
         <div className="flex items-baseline gap-2 mb-1">
-          <span className="font-serif-display text-[28px] leading-none text-[var(--color-text)]">
+          <span className="font-semibold text-[28px] leading-none text-[var(--color-text)]">
             orca
           </span>
           <WaveMark className="w-5 h-2 text-[var(--color-accent)]" />

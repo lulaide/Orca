@@ -145,7 +145,7 @@ export function EventDetailPanel({ id }: Props) {
               <span className="mt-2">
                 <SeverityDot severity={event.severity} />
               </span>
-              <h1 className="font-serif-display text-[28px] leading-tight text-[var(--color-text)]">
+              <h1 className="font-semibold text-[22px] leading-tight text-[var(--color-text)]">
                 {event.title}
               </h1>
             </div>
@@ -248,22 +248,9 @@ export function EventDetailPanel({ id }: Props) {
 
 function TopBar({ id }: { id: string }) {
   return (
-    <header className="flex items-center justify-between px-6 h-11 border-b border-[var(--color-border)] bg-[var(--color-bg)] font-mono text-[11px]">
-      <div className="flex items-center gap-2 text-[var(--color-text-dim)]">
-        <span className="text-[var(--color-accent)]">~</span>
-        <span>/</span>
-        <span>orca</span>
-        <span>/</span>
-        <button
-          type="button"
-          onClick={() => navigate('/events')}
-          className="hover:text-[var(--color-text)] transition-colors"
-        >
-          events
-        </button>
-        <span>/</span>
-        <span className="text-[var(--color-text-muted)]">{id.slice(0, 8)}</span>
-      </div>
+    <header className="flex items-center px-6 h-12 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+      <span className="text-[14px] font-medium text-[var(--color-text)]">事件详情</span>
+      <span className="text-[12px] text-[var(--color-text-dim)] ml-2">{id.slice(0, 8)}</span>
     </header>
   )
 }

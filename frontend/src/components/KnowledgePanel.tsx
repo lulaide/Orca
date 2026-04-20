@@ -119,12 +119,10 @@ export function KnowledgePanel() {
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full">
       {/* 顶部工具栏 */}
-      <header className="flex items-center justify-between px-6 h-11 border-b border-[var(--color-border)] bg-[var(--color-bg)] font-mono text-[11px]">
-        <div className="flex items-center gap-2 text-[var(--color-text-dim)]">
-          <span className="text-[var(--color-text-muted)]">
-            {selectedPage ? selectedPage.title : '知识库'}
-          </span>
-        </div>
+      <header className="flex items-center justify-between px-6 h-12 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+        <span className="text-[14px] font-medium text-[var(--color-text)]">
+          {selectedPage ? selectedPage.title : '知识库'}
+        </span>
         <div className="flex items-center gap-2">
           {scanLog.length > 0 && (
             <button type="button" onClick={() => setShowLog(!showLog)}
@@ -151,7 +149,7 @@ export function KnowledgePanel() {
       {empty && !showLog && (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-md">
-            <h2 className="font-serif-display text-[28px] text-[var(--color-text)] mb-3">知识库为空</h2>
+            <h2 className="font-semibold text-[22px] text-[var(--color-text)] mb-3">知识库为空</h2>
             <p className="text-[13px] text-[var(--color-text-muted)] leading-relaxed">
               点击"扫描集群"，Agent 会探索 Kubernetes 集群并生成结构化文档。
             </p>
@@ -189,7 +187,7 @@ function PageContent({ page, onUpdated }: { page: KnowledgePage; onUpdated: () =
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto px-10 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="font-serif-display text-[28px] text-[var(--color-text)]">{page.title}</h1>
+          <h1 className="font-semibold text-[22px] text-[var(--color-text)]">{page.title}</h1>
           {!editing && (
             <button type="button" onClick={() => setEditing(true)}
               className="text-[11px] font-mono text-[var(--color-accent)] hover:underline">编辑</button>

@@ -392,20 +392,16 @@ export function ChatPanel({
           <span className="text-[11.5px] opacity-70">↵</span>
         </button>
       )}
-      {/* Header bar — 命令行路径风格 */}
-      <header className="flex items-center justify-between px-6 h-11 border-b border-[var(--color-border)] bg-[var(--color-bg)] font-mono text-[11px]">
-        <div className="flex items-center gap-2 text-[var(--color-text-dim)]">
-          <span className="text-[var(--color-accent)]">~</span>
-          <span>/</span>
-          <span>orca</span>
-          <span>/</span>
-          <span className="text-[var(--color-text-muted)]">
-            {conversationId ? `sess.${conversationId.slice(0, 6)}` : 'new'}
-          </span>
-        </div>
-        <span className="text-[var(--color-text-dim)] tabular-nums">
-          {msgCount} msg
+      {/* Header */}
+      <header className="flex items-center justify-between px-6 h-12 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+        <span className="text-[14px] font-medium text-[var(--color-text)]">
+          {conversationId ? '对话' : '新对话'}
         </span>
+        {msgCount > 0 && (
+          <span className="text-[12px] text-[var(--color-text-dim)]">
+            {msgCount} 条消息
+          </span>
+        )}
       </header>
 
       {/* 顶部 chip bar：本对话已关联的 investigations */}
@@ -642,7 +638,7 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
         <div className="text-[11.5px] uppercase tracking-[0.25em] text-[var(--color-text-dim)] font-mono mb-3">
           ready · 就绪
         </div>
-        <h1 className="font-serif-display text-[44px] leading-[1.05] text-[var(--color-text)] mb-3">
+        <h1 className="font-semibold text-[44px] leading-[1.05] text-[var(--color-text)] mb-3">
           查点什么？
         </h1>
         <p className="text-[14px] text-[var(--color-text-muted)] max-w-md leading-relaxed">
@@ -685,7 +681,7 @@ function ThinkingIndicator() {
     <div className="pl-4 border-l-2 border-[var(--color-accent)]/60 orca-fade-in mb-7">
       <div className="flex items-center gap-2 mb-2 -ml-[22px]">
         <span className="w-4 h-4 rounded-full bg-[var(--color-bg)] border-2 border-[var(--color-accent)] orca-pulse-dot" />
-        <span className="font-serif-display text-[15px] text-[var(--color-text-muted)]">orca</span>
+        <span className="font-semibold text-[15px] text-[var(--color-text-muted)]">orca</span>
       </div>
       <div className="flex items-center gap-1.5 py-1">
         <span className="w-1 h-1 rounded-full bg-[var(--color-text-dim)] orca-pulse-dot" style={{ animationDelay: '0ms' }} />

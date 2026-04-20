@@ -76,7 +76,7 @@ export function InvestigationRefCard({ toolCall, output }: Props) {
         <div className="flex items-center gap-2 mb-1">
           {inv.severity && <SeverityDot severity={inv.severity} />}
           <span
-            className={`font-serif-display text-[16px] text-[var(--color-text)] flex-1 truncate
+            className={`font-semibold text-[16px] text-[var(--color-text)] flex-1 truncate
               ${archived ? 'line-through decoration-[var(--color-text-dim)]' : ''}`}
           >
             {inv.title || '未命名调查'}

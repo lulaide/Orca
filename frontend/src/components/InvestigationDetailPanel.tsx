@@ -303,13 +303,13 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
                     if (e.key === 'Enter') saveTitle()
                     if (e.key === 'Escape') setEditingTitle(false)
                   }}
-                  className="w-full font-serif-display text-[32px] leading-tight text-[var(--color-text)]
+                  className="w-full font-semibold text-[32px] leading-tight text-[var(--color-text)]
                     bg-transparent border-b border-[var(--color-border)]
                     focus:border-[var(--color-text)] focus:outline-none pb-1"
                 />
               ) : (
                 <h1
-                  className={`font-serif-display text-[32px] leading-tight text-[var(--color-text)]
+                  className={`font-semibold text-[32px] leading-tight text-[var(--color-text)]
                     ${archived ? 'line-through decoration-[var(--color-text-dim)]' : 'cursor-text hover:bg-[var(--color-surface)]'}`}
                   onClick={() => {
                     if (archived) return

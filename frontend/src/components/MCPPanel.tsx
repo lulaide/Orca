@@ -36,10 +36,7 @@ export function MCPPanel() {
       <div className="max-w-3xl mx-auto px-8 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <div className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] mb-1">
-              mcp connections
-            </div>
-            <h1 className="font-serif-display text-[28px] text-[var(--color-text)]">MCP 工具</h1>
+            <h1 className="text-[22px] font-semibold text-[var(--color-text)]">工具</h1>
             <p className="text-[13px] text-[var(--color-text-muted)] mt-1">
               连接外部 MCP Server，扩展 Agent 能力。
             </p>

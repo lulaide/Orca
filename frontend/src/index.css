@@ -7,26 +7,26 @@
    Design tokens — Light (default, "paper") & Dark ("deep harbor")
    ---------------------------------------------------------------- */
 @theme {
-  /* Light theme — warm paper, deep teal accent */
-  --color-bg: #f4efe3;
-  --color-bg-grid: rgba(40, 34, 20, 0.04);
-  --color-surface: #faf6ea;
-  --color-surface-2: #ece5d1;
-  --color-surface-3: #ddd3b8;
-  --color-border: #d2c8ac;
-  --color-border-strong: #b8ac87;
-  --color-text: #1c1f23;
-  --color-text-muted: #575a61;
-  --color-text-dim: #8b8b85;
-  --color-accent: #0d6b56;
-  --color-accent-hover: #0f8267;
-  --color-accent-dim: #09503f;
-  --color-accent-soft: rgba(13, 107, 86, 0.1);
-  --color-ok: #2f855a;
-  --color-warn: #b7791f;
-  --color-danger: #a5301e;
-  --color-user-bubble: #1c1f23;
-  --color-user-bubble-text: #faf6ea;
+  /* Light — clean white, neutral gray, blue accent */
+  --color-bg: #ffffff;
+  --color-bg-grid: rgba(0, 0, 0, 0.03);
+  --color-surface: #fafafa;
+  --color-surface-2: #f3f4f6;
+  --color-surface-3: #e5e7eb;
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+  --color-text: #111827;
+  --color-text-muted: #4b5563;
+  --color-text-dim: #9ca3af;
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-accent-dim: #1e40af;
+  --color-accent-soft: rgba(37, 99, 235, 0.08);
+  --color-ok: #16a34a;
+  --color-warn: #d97706;
+  --color-danger: #dc2626;
+  --color-user-bubble: #111827;
+  --color-user-bubble-text: #ffffff;
 
   --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
     'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -35,27 +35,27 @@
     'Noto Serif SC', serif;
 }
 
-/* Dark — deep harbor (warm navy, mint accent) */
+/* Dark — near-black, soft borders, blue accent */
 [data-theme='dark'] {
-  --color-bg: #0e1620;
-  --color-bg-grid: rgba(255, 245, 220, 0.025);
-  --color-surface: #151f2c;
-  --color-surface-2: #1d2838;
-  --color-surface-3: #273348;
-  --color-border: #273348;
-  --color-border-strong: #3b4860;
-  --color-text: #e8e2d0;
-  --color-text-muted: #9098a8;
-  --color-text-dim: #606773;
-  --color-accent: #3cd2a3;
-  --color-accent-hover: #5ee7c0;
-  --color-accent-dim: #0f6d55;
-  --color-accent-soft: rgba(60, 210, 163, 0.12);
+  --color-bg: #0a0a0a;
+  --color-bg-grid: rgba(255, 255, 255, 0.02);
+  --color-surface: #111111;
+  --color-surface-2: #1a1a1a;
+  --color-surface-3: #262626;
+  --color-border: #262626;
+  --color-border-strong: #404040;
+  --color-text: #ededed;
+  --color-text-muted: #a3a3a3;
+  --color-text-dim: #666666;
+  --color-accent: #3b82f6;
+  --color-accent-hover: #60a5fa;
+  --color-accent-dim: #2563eb;
+  --color-accent-soft: rgba(59, 130, 246, 0.12);
   --color-ok: #4ade80;
   --color-warn: #fbbf24;
-  --color-danger: #fb7185;
-  --color-user-bubble: #e8e2d0;
-  --color-user-bubble-text: #0e1620;
+  --color-danger: #f87171;
+  --color-user-bubble: #ededed;
+  --color-user-bubble-text: #0a0a0a;
 }
 
 /* ================================================================ */
@@ -146,9 +146,7 @@ input:focus-visible {
    Chat background — subtle dot grid ("blueprint" vibe)
    ---------------------------------------------------------------- */
 .orca-grid {
-  background-image: radial-gradient(circle, var(--color-bg-grid) 1px, transparent 1px);
-  background-size: 24px 24px;
-  background-position: 12px 12px;
+  background: var(--color-bg);
 }
 
 /* ================================================================
@@ -181,11 +179,11 @@ input:focus-visible {
 .orca-prose code {
   font-family: var(--font-mono);
   font-size: 0.84em;
-  background: var(--color-accent-soft);
+  background: var(--color-surface-2);
   padding: 0.15em 0.4em;
   border-radius: 4px;
-  color: var(--color-accent);
-  border: 1px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
 }
 .orca-prose pre {
   position: relative;

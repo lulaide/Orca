@@ -1,4 +1,4 @@
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { ChatMessage } from '../api'
 import { ToolCallCard } from './ToolCallCard'
@@ -56,6 +56,26 @@ export function AssistantTurn({ messages, toolOutputs }: AssistantTurnProps) {
   )
 }
 
+// 自定义 Markdown 组件：代码块加语言标签
+const markdownComponents: Components = {
+  pre({ children, ...props }) {
+    return <pre {...props}>{children}</pre>
+  },
+  code({ className, children, ...props }) {
+    const match = /language-(\w+)/.exec(className || '')
+    // 块级代码（在 pre 内）
+    if (match) {
+      return (
+        <>
+          <span className="code-lang-label">{match[1]}</span>
+          <code className={className} {...props}>{children}</code>
+        </>
+      )
+    }
+    return <code className={className} {...props}>{children}</code>
+  },
+}
+
 function AssistantSegment({
   message,
   toolOutputs,
@@ -70,7 +90,9 @@ function AssistantSegment({
     <div>
       {hasText && (
         <div className="orca-prose mb-1">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            {message.content}
+          </ReactMarkdown>
         </div>
       )}
       {hasTools && (

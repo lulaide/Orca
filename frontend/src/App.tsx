@@ -1,167 +1,197 @@
 import { useEffect, useState } from 'react'
-import { Sidebar } from './components/Sidebar'
+import { IconRail, type Module } from './components/IconRail'
+import { SecondaryPanel } from './components/SecondaryPanel'
 import { ChatPanel } from './components/ChatPanel'
+import { DashboardPanel } from './components/DashboardPanel'
 import { HomePanel } from './components/HomePanel'
-import { InvestigationListPanel } from './components/InvestigationListPanel'
 import { InvestigationDetailPanel } from './components/InvestigationDetailPanel'
-import { EventsListPanel } from './components/EventsListPanel'
 import { EventDetailPanel } from './components/EventDetailPanel'
+import { TriggersPanel } from './components/TriggersPanel'
+import { MCPPanel } from './components/MCPPanel'
 import { KnowledgePanel } from './components/KnowledgePanel'
 import { SettingsPanel } from './components/SettingsPanel'
 import type { InvestigationView, ReferencedInvestigation } from './api'
 
-type Route =
-  | { kind: 'home' }
-  | { kind: 'chat'; conversationId: string | null }
-  | { kind: 'investigation'; id: string }
-  | { kind: 'investigation-list'; view: InvestigationView }
-  | { kind: 'events-list' }
-  | { kind: 'event-detail'; id: string }
-  | { kind: 'knowledge' }
-  | { kind: 'settings' }
+// ---- Route 定义 ----
 
-function parseConversationId(pathname: string): string | null {
-  const m = pathname.match(/^\/c\/([A-Za-z0-9_-]{6,})$/)
-  return m ? m[1] : null
-}
+type Route =
+  | { module: 'home' }
+  | { module: 'chat'; conversationId: string | null }
+  | { module: 'events'; eventId: string | null }
+  | { module: 'investigations'; id: string | null; view: InvestigationView }
+  | { module: 'knowledge'; slug: string | null }
+  | { module: 'triggers' }
+  | { module: 'mcp' }
+  | { module: 'settings' }
 
 function parseRoute(pathname: string, search: string): Route {
-  const invDetail = pathname.match(/^\/i\/([A-Za-z0-9_-]{6,})$/)
-  if (invDetail) return { kind: 'investigation', id: invDetail[1] }
-  if (pathname === '/knowledge' || pathname === '/knowledge/') {
-    return { kind: 'knowledge' }
+  // /settings
+  if (pathname === '/settings' || pathname === '/settings/') return { module: 'settings' }
+  // /triggers
+  if (pathname === '/triggers' || pathname === '/triggers/') return { module: 'triggers' }
+  // /mcp
+  if (pathname === '/mcp' || pathname === '/mcp/') return { module: 'mcp' }
+  // /knowledge/{slug}
+  if (pathname.startsWith('/knowledge/')) {
+    return { module: 'knowledge', slug: pathname.slice('/knowledge/'.length) || null }
   }
-  if (pathname === '/settings' || pathname === '/settings/') {
-    return { kind: 'settings' }
-  }
+  if (pathname === '/knowledge') return { module: 'knowledge', slug: null }
+  // /events/{id}
   const evDetail = pathname.match(/^\/events\/([A-Za-z0-9_-]{6,})$/)
-  if (evDetail) return { kind: 'event-detail', id: evDetail[1] }
-  if (pathname === '/events' || pathname === '/events/') {
-    return { kind: 'events-list' }
-  }
+  if (evDetail) return { module: 'events', eventId: evDetail[1] }
+  if (pathname === '/events' || pathname === '/events/') return { module: 'events', eventId: null }
+  // /i/{id}
+  const invDetail = pathname.match(/^\/i\/([A-Za-z0-9_-]{6,})$/)
+  if (invDetail) return { module: 'investigations', id: invDetail[1], view: 'active' }
   if (pathname === '/i' || pathname === '/i/') {
     const sp = new URLSearchParams(search)
     const v = sp.get('view') as InvestigationView | null
-    const view: InvestigationView =
-      v === 'active' || v === 'resolved' || v === 'archived' || v === 'all' ? v : 'active'
-    return { kind: 'investigation-list', view }
+    const view: InvestigationView = v === 'active' || v === 'resolved' || v === 'archived' || v === 'all' ? v : 'active'
+    return { module: 'investigations', id: null, view }
   }
-  const convId = parseConversationId(pathname)
-  if (convId) return { kind: 'chat', conversationId: convId }
-  if (pathname === '/' || pathname === '') return { kind: 'home' }
-  // 未知路径回退到 home
-  return { kind: 'home' }
+  // /c/{id}
+  const convMatch = pathname.match(/^\/c\/([A-Za-z0-9_-]{6,})$/)
+  if (convMatch) return { module: 'chat', conversationId: convMatch[1] }
+  if (pathname === '/c' || pathname === '/c/') return { module: 'chat', conversationId: null }
+  // / → home
+  return { module: 'home' }
 }
 
-function urlForConv(id: string | null): string {
-  return id ? `/c/${id}` : '/'
+function getModule(route: Route): Module {
+  return route.module
 }
+
+const MODULES_WITH_PANEL: Module[] = ['chat', 'events', 'investigations', 'knowledge']
 
 function App() {
   const [route, setRoute] = useState<Route>(() =>
     parseRoute(window.location.pathname, window.location.search),
   )
   const [refreshToken, setRefreshToken] = useState(0)
-  // 首页输入框提交的首条消息，暂存到 ChatPanel 拿到之后自动发
   const [pendingInitialMessage, setPendingInitialMessage] = useState<string | null>(null)
-  // 首页输入框提交时附带的引用，与 pendingInitialMessage 配对
   const [pendingInitialRefs, setPendingInitialRefs] = useState<ReferencedInvestigation[]>([])
-  // sidebar "+ 新对话" 点击时递增，HomePanel 据此聚焦输入框
-  const [homeFocusToken, setHomeFocusToken] = useState(0)
 
   const bumpRefresh = () => setRefreshToken((v) => v + 1)
 
-  // 浏览器前进/后退或手动 navigate 时同步状态
   useEffect(() => {
     const onPop = () => setRoute(parseRoute(window.location.pathname, window.location.search))
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
-  // 侧栏切换对话（null → 回到首页）
+  const nav = (path: string) => {
+    if (window.location.pathname + window.location.search !== path) {
+      window.history.pushState(null, '', path)
+    }
+    setRoute(parseRoute(path.split('?')[0], path.includes('?') ? path.split('?')[1] : ''))
+  }
+
+  const handleModuleSelect = (m: Module) => {
+    const paths: Record<Module, string> = {
+      home: '/',
+      chat: '/c',
+      events: '/events',
+      investigations: '/i',
+      knowledge: '/knowledge',
+      triggers: '/triggers',
+      mcp: '/mcp',
+      settings: '/settings',
+    }
+    nav(paths[m])
+  }
+
   const handleSelectConversation = (id: string | null) => {
     if (id === null) {
-      setRoute({ kind: 'home' })
-      if (window.location.pathname + window.location.search !== '/') {
-        window.history.pushState(null, '', '/')
-      }
-      setHomeFocusToken((t) => t + 1)
-      return
-    }
-    const next = urlForConv(id)
-    setRoute({ kind: 'chat', conversationId: id })
-    if (window.location.pathname + window.location.search !== next) {
-      window.history.pushState(null, '', next)
+      nav('/c')
+    } else {
+      nav(`/c/${id}`)
     }
   }
 
-  // Home 输入框提交 → 打开空 chat 面板 + 自动发首条
-  const handleHomeSubmit = (text: string, refs: ReferencedInvestigation[]) => {
-    const t = text.trim()
-    if (!t) return
-    setPendingInitialMessage(t)
-    setPendingInitialRefs(refs)
-    setRoute({ kind: 'chat', conversationId: null })
-    // 保持 URL 为 /，等 conversation_id 回来后在 onConversationCreated 里 replaceState
-  }
-
-  // 首次发送消息后后端回填的 id → 不新增历史项，替换当前
   const handleConversationCreated = (id: string) => {
-    setRoute({ kind: 'chat', conversationId: id })
-    window.history.replaceState(null, '', urlForConv(id))
+    setRoute({ module: 'chat', conversationId: id })
+    window.history.replaceState(null, '', `/c/${id}`)
     bumpRefresh()
   }
 
-  const activeConversationId = route.kind === 'chat' ? route.conversationId : null
+  const handleHomeSubmit = (text: string, refs: ReferencedInvestigation[]) => {
+    if (!text.trim()) return
+    setPendingInitialMessage(text)
+    setPendingInitialRefs(refs)
+    nav('/c')
+  }
+
+  const handleSelectKnowledgeSlug = (slug: string) => {
+    nav(`/knowledge/${slug}`)
+  }
+
+  const module = getModule(route)
+  const hasSecondaryPanel = MODULES_WITH_PANEL.includes(module)
+
+  const activeConversationId = route.module === 'chat' ? route.conversationId : null
+  const activeEventId = route.module === 'events' ? route.eventId : null
+  const activeInvestigationId = route.module === 'investigations' ? route.id : null
+  const investigationView = route.module === 'investigations' ? route.view : 'active' as InvestigationView
+  const activeKnowledgeSlug = route.module === 'knowledge' ? route.slug : null
 
   return (
     <div className="flex w-full h-full bg-[var(--color-bg)]">
-      <Sidebar
-        activeId={activeConversationId}
-        onSelect={handleSelectConversation}
-        refreshToken={refreshToken}
-        route={route}
-      />
+      <IconRail active={module} onSelect={handleModuleSelect} />
+
+      {hasSecondaryPanel && (
+        <SecondaryPanel
+          module={module}
+          refreshToken={refreshToken}
+          activeConversationId={activeConversationId}
+          onSelectConversation={handleSelectConversation}
+          activeEventId={activeEventId}
+          activeInvestigationId={activeInvestigationId}
+          investigationView={investigationView}
+          activeKnowledgeSlug={activeKnowledgeSlug}
+          onSelectKnowledgeSlug={handleSelectKnowledgeSlug}
+        />
+      )}
+
       <main className="flex-1 flex flex-col min-w-0 h-full">
-        {route.kind === 'home' && (
-          <HomePanel
-            onSubmit={handleHomeSubmit}
-            focusSignal={homeFocusToken}
-          />
+        {route.module === 'home' && (
+          <DashboardPanel />
         )}
-        {route.kind === 'chat' && (
+        {route.module === 'chat' && (
           <ChatPanel
             conversationId={route.conversationId}
             onConversationCreated={handleConversationCreated}
             onConversationUpdated={bumpRefresh}
             initialMessage={pendingInitialMessage}
             initialReferencedInvestigations={pendingInitialRefs}
-            onInitialMessageConsumed={() => {
-              setPendingInitialMessage(null)
-              setPendingInitialRefs([])
-            }}
+            onInitialMessageConsumed={() => { setPendingInitialMessage(null); setPendingInitialRefs([]) }}
           />
         )}
-        {route.kind === 'investigation-list' && (
-          <InvestigationListPanel
-            view={route.view}
-            refreshToken={refreshToken}
-            onChanged={bumpRefresh}
-          />
+        {route.module === 'events' && route.eventId && (
+          <EventDetailPanel id={route.eventId} />
         )}
-        {route.kind === 'investigation' && (
+        {route.module === 'events' && !route.eventId && (
+          <div className="flex-1 flex items-center justify-center text-[13px] text-[var(--color-text-dim)]">
+            选择左侧事件查看详情
+          </div>
+        )}
+        {route.module === 'investigations' && route.id && (
           <InvestigationDetailPanel id={route.id} onChanged={bumpRefresh} />
         )}
-        {route.kind === 'events-list' && (
-          <EventsListPanel refreshToken={refreshToken} />
+        {route.module === 'investigations' && !route.id && (
+          <div className="flex-1 flex items-center justify-center text-[13px] text-[var(--color-text-dim)]">
+            选择左侧调查查看详情
+          </div>
         )}
-        {route.kind === 'event-detail' && (
-          <EventDetailPanel id={route.id} />
-        )}
-        {route.kind === 'knowledge' && (
+        {route.module === 'knowledge' && (
           <KnowledgePanel />
         )}
-        {route.kind === 'settings' && (
+        {route.module === 'triggers' && (
+          <TriggersPanel />
+        )}
+        {route.module === 'mcp' && (
+          <MCPPanel />
+        )}
+        {route.module === 'settings' && (
           <SettingsPanel refreshToken={refreshToken} />
         )}
       </main>

@@ -13,7 +13,6 @@ import {
 } from '../api'
 import { navigate } from '../navigate'
 import { SeverityDot } from './investigationUI'
-import { formatRelativeTime } from '../timeFormat'
 import type { Module } from './IconRail'
 
 interface Props {

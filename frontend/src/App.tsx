@@ -4,7 +4,8 @@ import { IconRail, type Module } from './components/IconRail'
 import { SecondaryPanel } from './components/SecondaryPanel'
 import { ChatPanel } from './components/ChatPanel'
 import { DashboardPanel } from './components/DashboardPanel'
-import { HomePanel } from './components/HomePanel'
+// HomePanel 暂未使用（Dashboard 取代了首页）
+// import { HomePanel } from './components/HomePanel'
 import { InvestigationDetailPanel } from './components/InvestigationDetailPanel'
 import { EventDetailPanel } from './components/EventDetailPanel'
 import { TriggersPanel } from './components/TriggersPanel'
@@ -116,12 +117,7 @@ function App() {
     bumpRefresh()
   }
 
-  const handleHomeSubmit = (text: string, refs: ReferencedInvestigation[]) => {
-    if (!text.trim()) return
-    setPendingInitialMessage(text)
-    setPendingInitialRefs(refs)
-    nav('/c')
-  }
+
 
   const handleSelectKnowledgeSlug = (slug: string) => {
     nav(`/knowledge/${slug}`)

@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/lulaide/orca/internal/api"
+	"github.com/lulaide/orca/internal/auth"
 	"github.com/lulaide/orca/internal/config"
 	"github.com/lulaide/orca/internal/core"
 	"github.com/lulaide/orca/internal/db"
@@ -43,6 +44,7 @@ func main() {
 		&core.PluginConfig{},
 		&core.MCPConnection{},
 		&core.KnowledgePage{},
+		&core.User{},
 	); err != nil {
 		log.Fatalf("Migration: %v", err)
 	}
@@ -111,7 +113,13 @@ func main() {
 	// 9. Event Router：把 Event 分派到后台 Agent Loop
 	eventRouter := dispatch.NewEventRouter(gormDB, engine, 0)
 
-	// 10. HTTP Server
+	// 10. JWT Secret
+	jwtSecret, err := auth.GetOrCreateJWTSecret(gormDB)
+	if err != nil {
+		log.Fatalf("Auth: %v", err)
+	}
+
+	// 11. HTTP Server
 	router := api.NewRouter(&api.Deps{
 		FrontendFS: frontendFS,
 		DB:       gormDB,
@@ -121,7 +129,8 @@ func main() {
 		Registry: reg,
 		Triggers: triggerReg,
 		Router:   eventRouter,
-		MCP:      mcpMgr,
+		MCP:       mcpMgr,
+		JWTSecret: jwtSecret,
 	})
 
 	addr := cfg.Server.Addr()

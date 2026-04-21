@@ -1,3 +1,69 @@
+// ---- Auth ----
+
+const TOKEN_KEY = 'orca_token'
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY)
+}
+
+export function setToken(token: string) {
+  localStorage.setItem(TOKEN_KEY, token)
+}
+
+export function clearToken() {
+  localStorage.removeItem(TOKEN_KEY)
+}
+
+/** 自动带 Authorization header 的 fetch */
+export function authFetch(url: string, init?: RequestInit): Promise<Response> {
+  const token = getToken()
+  const headers = new Headers(init?.headers)
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  return fetch(url, { ...init, headers })
+}
+
+export interface AuthStatus {
+  initialized: boolean
+  user?: { id: string; username: string; role: string }
+}
+
+export async function getAuthStatus(): Promise<AuthStatus> {
+  const token = getToken()
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const res = await authFetch('/api/auth/status', { headers })
+  if (!res.ok) throw new Error(`auth status: ${res.status}`)
+  return res.json()
+}
+
+export async function setupAdmin(username: string, password: string): Promise<{ token: string }> {
+  const res = await fetch('/api/auth/setup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || `setup: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function login(username: string, password: string): Promise<{ token: string }> {
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || `login: ${res.status}`)
+  }
+  return res.json()
+}
+
+// ---- Status ----
+
 export interface StatusResponse {
   llm: {
     provider: string
@@ -53,7 +119,7 @@ export interface ChatMessage {
 }
 
 export async function getStatus(): Promise<StatusResponse> {
-  const res = await fetch('/api/status')
+  const res = await authFetch('/api/status')
   if (!res.ok) throw new Error(`status: ${res.status}`)
   return res.json()
 }
@@ -69,7 +135,7 @@ export interface LLMSettingsInput {
 }
 
 export async function updateLLMSettings(body: LLMSettingsInput): Promise<StatusResponse['llm']> {
-  const res = await fetch('/api/settings/llm', {
+  const res = await authFetch('/api/settings/llm', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -82,14 +148,14 @@ export async function updateLLMSettings(body: LLMSettingsInput): Promise<StatusR
 }
 
 export async function testLLMConnection(): Promise<{ ok: boolean; reply?: string; error?: string }> {
-  const res = await fetch('/api/settings/llm/test', { method: 'POST' })
+  const res = await authFetch('/api/settings/llm/test', { method: 'POST' })
   return res.json()
 }
 
 // ---- Settings: Kubernetes ----
 
 export async function connectKubeInCluster(): Promise<StatusResponse['kubernetes']> {
-  const res = await fetch('/api/settings/kubernetes/in-cluster', { method: 'POST' })
+  const res = await authFetch('/api/settings/kubernetes/in-cluster', { method: 'POST' })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `in-cluster: ${res.status}`)
@@ -98,7 +164,7 @@ export async function connectKubeInCluster(): Promise<StatusResponse['kubernetes
 }
 
 export async function uploadKubeconfig(content: string): Promise<StatusResponse['kubernetes']> {
-  const res = await fetch('/api/settings/kubernetes/kubeconfig', {
+  const res = await authFetch('/api/settings/kubernetes/kubeconfig', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content }),
@@ -111,7 +177,7 @@ export async function uploadKubeconfig(content: string): Promise<StatusResponse[
 }
 
 export async function disconnectKube(): Promise<StatusResponse['kubernetes']> {
-  const res = await fetch('/api/settings/kubernetes', { method: 'DELETE' })
+  const res = await authFetch('/api/settings/kubernetes', { method: 'DELETE' })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `disconnect kube: ${res.status}`)
@@ -146,7 +212,7 @@ export interface ClusterMetrics {
 }
 
 export async function getClusterMetrics(): Promise<ClusterMetrics> {
-  const res = await fetch('/api/cluster/metrics')
+  const res = await authFetch('/api/cluster/metrics')
   if (!res.ok) throw new Error(`cluster/metrics: ${res.status}`)
   return res.json()
 }
@@ -161,7 +227,7 @@ export interface Conversation {
 }
 
 export async function listConversations(): Promise<Conversation[]> {
-  const res = await fetch('/api/conversations')
+  const res = await authFetch('/api/conversations')
   if (!res.ok) throw new Error(`conversations: ${res.status}`)
   return res.json()
 }
@@ -258,7 +324,7 @@ export interface CreateInvestigationInput {
 }
 
 export async function createInvestigation(body: CreateInvestigationInput): Promise<Investigation> {
-  const res = await fetch('/api/investigations', {
+  const res = await authFetch('/api/investigations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -374,7 +440,7 @@ export interface PluginInfo {
 }
 
 export async function listPlugins(): Promise<PluginInfo[]> {
-  const res = await fetch('/api/plugins')
+  const res = await authFetch('/api/plugins')
   if (!res.ok) throw new Error(`plugins: ${res.status}`)
   return res.json()
 }
@@ -450,7 +516,7 @@ export interface ScanStreamEvent {
 }
 
 export async function listKnowledgePages(): Promise<KnowledgePage[]> {
-  const res = await fetch('/api/knowledge/pages')
+  const res = await authFetch('/api/knowledge/pages')
   if (!res.ok) throw new Error(`pages: ${res.status}`)
   return res.json()
 }
@@ -473,7 +539,7 @@ export async function updateKnowledgePage(slug: string, content: string): Promis
 
 /** 启动扫描（POST），返回后通过 streamScanProgress 订阅进度 */
 export async function startScan(): Promise<{ status: string }> {
-  const res = await fetch('/api/knowledge/scan', { method: 'POST' })
+  const res = await authFetch('/api/knowledge/scan', { method: 'POST' })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error((err as { error?: string }).error || `scan: ${res.status}`)
@@ -490,7 +556,7 @@ export function streamScanProgress(handlers: {
 }): { abort: () => void } {
   const ctrl = new AbortController()
 
-  fetch('/api/knowledge/scan/stream', {
+  authFetch('/api/knowledge/scan/stream', {
     headers: { Accept: 'text/event-stream' },
     signal: ctrl.signal,
   }).then(async (res) => {
@@ -590,13 +656,13 @@ export interface CreateMCPConnectionInput {
 }
 
 export async function listMCPConnections(): Promise<MCPConnectionInfo[]> {
-  const res = await fetch('/api/mcp/connections')
+  const res = await authFetch('/api/mcp/connections')
   if (!res.ok) throw new Error(`mcp connections: ${res.status}`)
   return res.json()
 }
 
 export async function createMCPConnection(body: CreateMCPConnectionInput): Promise<MCPConnectionInfo> {
-  const res = await fetch('/api/mcp/connections', {
+  const res = await authFetch('/api/mcp/connections', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -671,7 +737,7 @@ export async function streamChat(
   conversationId: string | null,
   { onEvent, signal, referencedInvestigationIDs }: StreamChatHandlers,
 ): Promise<void> {
-  const res = await fetch('/api/chat', {
+  const res = await authFetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify({

@@ -103,6 +103,15 @@ type Event struct {
 	CreatedAt      time.Time `gorm:"index" json:"created_at"`
 }
 
+// User 是平台用户。安装后第一个设置的用户自动成为 admin。
+type User struct {
+	ID           string    `gorm:"primaryKey" json:"id"`
+	Username     string    `gorm:"uniqueIndex" json:"username"`
+	PasswordHash string    `json:"-"` // bcrypt，不暴露给前端
+	Role         string    `gorm:"default:member" json:"role"` // "admin" | "member"
+	CreatedAt    time.Time `json:"created_at"`
+}
+
 // KnowledgePage 是知识库中的一篇文档。多篇文档通过 parent_slug 组成树形结构。
 // Agent 扫描集群时自动生成（概述 / namespace / 服务 / 架构关系等），
 // 用户也可以手动编辑 content。

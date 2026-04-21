@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { AuthGuard } from './components/AuthGuard'
 import { IconRail, type Module } from './components/IconRail'
 import { SecondaryPanel } from './components/SecondaryPanel'
 import { ChatPanel } from './components/ChatPanel'
@@ -10,7 +11,7 @@ import { TriggersPanel } from './components/TriggersPanel'
 import { MCPPanel } from './components/MCPPanel'
 import { KnowledgePanel } from './components/KnowledgePanel'
 import { SettingsPanel } from './components/SettingsPanel'
-import type { InvestigationView, ReferencedInvestigation } from './api'
+import type { InvestigationView, ReferencedInvestigation, AuthStatus } from './api'
 
 // ---- Route 定义 ----
 
@@ -68,6 +69,7 @@ function App() {
     parseRoute(window.location.pathname, window.location.search),
   )
   const [refreshToken, setRefreshToken] = useState(0)
+  const [currentUser, setCurrentUser] = useState<AuthStatus['user']>(undefined)
   const [pendingInitialMessage, setPendingInitialMessage] = useState<string | null>(null)
   const [pendingInitialRefs, setPendingInitialRefs] = useState<ReferencedInvestigation[]>([])
 
@@ -135,8 +137,9 @@ function App() {
   const activeKnowledgeSlug = route.module === 'knowledge' ? route.slug : null
 
   return (
+    <AuthGuard onUser={setCurrentUser}>
     <div className="flex w-full h-full bg-[var(--color-bg)]">
-      <IconRail active={module} onSelect={handleModuleSelect} />
+      <IconRail active={module} onSelect={handleModuleSelect} username={currentUser?.username} />
 
       {hasSecondaryPanel && (
         <SecondaryPanel
@@ -196,6 +199,7 @@ function App() {
         )}
       </main>
     </div>
+    </AuthGuard>
   )
 }
 

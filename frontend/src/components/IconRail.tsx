@@ -1,18 +1,20 @@
 import { getStatus, type StatusResponse } from '../api'
 import { useEffect, useState } from 'react'
 import { applyTheme, type Theme } from '../theme'
+import { logout } from './AuthGuard'
 
 export type Module = 'home' | 'chat' | 'events' | 'investigations' | 'knowledge' | 'triggers' | 'mcp' | 'settings'
 
 interface Props {
   active: Module
   onSelect: (m: Module) => void
+  username?: string
 }
 
 const currentTheme = (): Theme =>
   (document.documentElement.getAttribute('data-theme') as Theme) || 'light'
 
-export function IconRail({ active, onSelect }: Props) {
+export function IconRail({ active, onSelect, username }: Props) {
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [theme, setTheme] = useState<Theme>(currentTheme())
 
@@ -65,7 +67,17 @@ export function IconRail({ active, onSelect }: Props) {
       <div className="border-t border-[var(--color-border)] px-2 py-2 space-y-0.5">
         <NavItem icon={<SettingsIcon />} label="设置" module="settings" active={active} onSelect={onSelect} />
 
-        <div className="flex items-center justify-between px-2.5 py-1.5 mt-1">
+        {username && (
+          <div className="flex items-center gap-2 px-2.5 py-1.5 mt-1">
+            <span className="w-6 h-6 rounded-full bg-[var(--color-accent)] text-white
+              text-[11px] font-medium grid place-items-center shrink-0">
+              {username[0].toUpperCase()}
+            </span>
+            <span className="text-[12px] text-[var(--color-text)] truncate flex-1">{username}</span>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between px-2.5 py-1.5">
           <div className="flex items-center gap-2 text-[11px] font-mono text-[var(--color-text-dim)]">
             <span className={`w-1.5 h-1.5 rounded-full ${llmOk ? 'bg-[var(--color-ok)]' : 'bg-[var(--color-warn)]'}`} />
             <span>LLM</span>
@@ -78,8 +90,19 @@ export function IconRail({ active, onSelect }: Props) {
             className="w-7 h-7 grid place-items-center rounded
               text-[var(--color-text-dim)] hover:text-[var(--color-text)]
               hover:bg-[var(--color-surface-2)] transition-colors"
+            title={theme === 'light' ? '暗色模式' : '亮色模式'}
           >
             {theme === 'light' ? <MoonIcon /> : <SunIcon />}
+          </button>
+          <button
+            type="button"
+            onClick={logout}
+            className="w-7 h-7 grid place-items-center rounded
+              text-[var(--color-text-dim)] hover:text-[var(--color-danger)]
+              hover:bg-[var(--color-surface-2)] transition-colors"
+            title="登出"
+          >
+            <LogoutIcon />
           </button>
         </div>
       </div>
@@ -142,6 +165,9 @@ function ToolIcon() {
 }
 function SettingsIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>
+}
+function LogoutIcon() {
+  return <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
 }
 function MoonIcon() {
   return <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" /></svg>

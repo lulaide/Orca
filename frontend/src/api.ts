@@ -263,26 +263,26 @@ export async function listConversations(): Promise<Conversation[]> {
 }
 
 export async function getConversationMessages(id: string): Promise<ChatMessage[]> {
-  const res = await fetch(`/api/conversations/${id}/messages`)
+  const res = await authFetch(`/api/conversations/${id}/messages`)
   if (!res.ok) throw new Error(`messages: ${res.status}`)
   return res.json()
 }
 
 export async function deleteConversation(id: string): Promise<void> {
-  const res = await fetch(`/api/conversations/${id}`, { method: 'DELETE' })
+  const res = await authFetch(`/api/conversations/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`delete: ${res.status}`)
 }
 
 // 列出本对话已关联的 investigations（顶部 chip bar 用）
 export async function listConversationInvestigations(convId: string): Promise<Investigation[]> {
-  const res = await fetch(`/api/conversations/${convId}/investigations`)
+  const res = await authFetch(`/api/conversations/${convId}/investigations`)
   if (!res.ok) throw new Error(`conversation investigations: ${res.status}`)
   return res.json()
 }
 
 // 解除对话与某 investigation 的关联（不删 investigation 本体）
 export async function unlinkInvestigationFromConversation(convId: string, invId: string): Promise<void> {
-  const res = await fetch(`/api/conversations/${convId}/investigations/${invId}`, { method: 'DELETE' })
+  const res = await authFetch(`/api/conversations/${convId}/investigations/${invId}`, { method: 'DELETE' })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `unlink: ${res.status}`)
@@ -334,13 +334,13 @@ export async function listInvestigations(opts: ListInvestigationsOpts = {}): Pro
   if (opts.conversationId) params.set('conversation_id', opts.conversationId)
   if (opts.status) params.set('status', opts.status)
   const qs = params.toString()
-  const res = await fetch(`/api/investigations${qs ? '?' + qs : ''}`)
+  const res = await authFetch(`/api/investigations${qs ? '?' + qs : ''}`)
   if (!res.ok) throw new Error(`investigations: ${res.status}`)
   return res.json()
 }
 
 export async function getInvestigation(id: string): Promise<Investigation> {
-  const res = await fetch(`/api/investigations/${id}`)
+  const res = await authFetch(`/api/investigations/${id}`)
   if (!res.ok) throw new Error(`investigation: ${res.status}`)
   return res.json()
 }
@@ -376,7 +376,7 @@ export interface UpdateInvestigationPatch {
 }
 
 export async function updateInvestigation(id: string, patch: UpdateInvestigationPatch): Promise<Investigation> {
-  const res = await fetch(`/api/investigations/${id}`, {
+  const res = await authFetch(`/api/investigations/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
@@ -389,7 +389,7 @@ export async function updateInvestigation(id: string, patch: UpdateInvestigation
 }
 
 export async function archiveInvestigation(id: string): Promise<Investigation> {
-  const res = await fetch(`/api/investigations/${id}/archive`, { method: 'POST' })
+  const res = await authFetch(`/api/investigations/${id}/archive`, { method: 'POST' })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `archive: ${res.status}`)
@@ -398,7 +398,7 @@ export async function archiveInvestigation(id: string): Promise<Investigation> {
 }
 
 export async function unarchiveInvestigation(id: string): Promise<Investigation> {
-  const res = await fetch(`/api/investigations/${id}/unarchive`, { method: 'POST' })
+  const res = await authFetch(`/api/investigations/${id}/unarchive`, { method: 'POST' })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `unarchive: ${res.status}`)
@@ -407,7 +407,7 @@ export async function unarchiveInvestigation(id: string): Promise<Investigation>
 }
 
 export async function listInvestigationEntries(id: string): Promise<InvestigationEntry[]> {
-  const res = await fetch(`/api/investigations/${id}/entries`)
+  const res = await authFetch(`/api/investigations/${id}/entries`)
   if (!res.ok) throw new Error(`entries: ${res.status}`)
   return res.json()
 }
@@ -442,7 +442,7 @@ export async function listEvents(opts: ListEventsOpts = {}): Promise<OrcaEvent[]
   if (opts.processed !== undefined) params.set('processed', opts.processed ? 'true' : 'false')
   if (opts.limit) params.set('limit', String(opts.limit))
   const qs = params.toString()
-  const res = await fetch(`/api/events${qs ? '?' + qs : ''}`)
+  const res = await authFetch(`/api/events${qs ? '?' + qs : ''}`)
   if (!res.ok) throw new Error(`events: ${res.status}`)
   return res.json()
 }
@@ -453,7 +453,7 @@ export interface EventDetail {
 }
 
 export async function getEvent(id: string): Promise<EventDetail> {
-  const res = await fetch(`/api/events/${id}`)
+  const res = await authFetch(`/api/events/${id}`)
   if (!res.ok) throw new Error(`event: ${res.status}`)
   return res.json()
 }
@@ -482,7 +482,7 @@ export interface PluginTokenInfo {
 }
 
 export async function enablePlugin(name: string): Promise<void> {
-  const res = await fetch(`/api/plugins/${name}/enable`, { method: 'POST' })
+  const res = await authFetch(`/api/plugins/${name}/enable`, { method: 'POST' })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `enable: ${res.status}`)
@@ -490,7 +490,7 @@ export async function enablePlugin(name: string): Promise<void> {
 }
 
 export async function disablePlugin(name: string): Promise<void> {
-  const res = await fetch(`/api/plugins/${name}/disable`, { method: 'POST' })
+  const res = await authFetch(`/api/plugins/${name}/disable`, { method: 'POST' })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `disable: ${res.status}`)
@@ -498,7 +498,7 @@ export async function disablePlugin(name: string): Promise<void> {
 }
 
 export async function regeneratePluginToken(name: string): Promise<PluginTokenInfo> {
-  const res = await fetch(`/api/plugins/${name}/regenerate-token`, { method: 'POST' })
+  const res = await authFetch(`/api/plugins/${name}/regenerate-token`, { method: 'POST' })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `regenerate token: ${res.status}`)
@@ -507,7 +507,7 @@ export async function regeneratePluginToken(name: string): Promise<PluginTokenIn
 }
 
 export async function getPluginToken(name: string): Promise<PluginTokenInfo | null> {
-  const res = await fetch(`/api/plugins/${name}/token`)
+  const res = await authFetch(`/api/plugins/${name}/token`)
   if (res.status === 404) return null
   if (!res.ok) throw new Error(`plugin token: ${res.status}`)
   return res.json()
@@ -517,7 +517,7 @@ export async function createInvestigationEntry(
   id: string,
   body: { type: InvestigationEntryType; content: string },
 ): Promise<InvestigationEntry> {
-  const res = await fetch(`/api/investigations/${id}/entries`, {
+  const res = await authFetch(`/api/investigations/${id}/entries`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -552,13 +552,13 @@ export async function listKnowledgePages(): Promise<KnowledgePage[]> {
 }
 
 export async function getKnowledgePage(slug: string): Promise<KnowledgePage> {
-  const res = await fetch(`/api/knowledge/pages/${slug}`)
+  const res = await authFetch(`/api/knowledge/pages/${slug}`)
   if (!res.ok) throw new Error(`page: ${res.status}`)
   return res.json()
 }
 
 export async function updateKnowledgePage(slug: string, content: string): Promise<KnowledgePage> {
-  const res = await fetch(`/api/knowledge/pages/${slug}`, {
+  const res = await authFetch(`/api/knowledge/pages/${slug}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content }),
@@ -705,7 +705,7 @@ export async function createMCPConnection(body: CreateMCPConnectionInput): Promi
 }
 
 export async function updateMCPConnection(id: string, patch: Record<string, unknown>): Promise<MCPConnectionInfo> {
-  const res = await fetch(`/api/mcp/connections/${id}`, {
+  const res = await authFetch(`/api/mcp/connections/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
@@ -718,7 +718,7 @@ export async function updateMCPConnection(id: string, patch: Record<string, unkn
 }
 
 export async function deleteMCPConnection(id: string): Promise<void> {
-  const res = await fetch(`/api/mcp/connections/${id}`, { method: 'DELETE' })
+  const res = await authFetch(`/api/mcp/connections/${id}`, { method: 'DELETE' })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `delete mcp connection: ${res.status}`)
@@ -726,7 +726,7 @@ export async function deleteMCPConnection(id: string): Promise<void> {
 }
 
 export async function reconnectMCPConnection(id: string): Promise<{ tools: string[] }> {
-  const res = await fetch(`/api/mcp/connections/${id}/reconnect`, { method: 'POST' })
+  const res = await authFetch(`/api/mcp/connections/${id}/reconnect`, { method: 'POST' })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `reconnect: ${res.status}`)
@@ -735,7 +735,7 @@ export async function reconnectMCPConnection(id: string): Promise<{ tools: strin
 }
 
 export async function getMCPOAuthURL(id: string): Promise<{ authorize_url?: string; status?: string }> {
-  const res = await fetch(`/api/mcp/connections/${id}/oauth/authorize`)
+  const res = await authFetch(`/api/mcp/connections/${id}/oauth/authorize`)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `oauth authorize: ${res.status}`)

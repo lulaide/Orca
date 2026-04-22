@@ -410,6 +410,22 @@ func (m *Manager) StartOAuth(ctx context.Context, cfg *core.MCPConnection) (stri
 }
 
 func (m *Manager) buildAuthURL(ctx context.Context, cfg *core.MCPConnection, handler *transport.OAuthHandler, tokenStore *DBTokenStore) (string, error) {
+	// 如果没有 client_id，先做动态客户端注册
+	if handler.GetClientID() == "" {
+		if err := handler.RegisterClient(ctx, "Orca"); err != nil {
+			return "", fmt.Errorf("dynamic client registration: %w", err)
+		}
+		// 注册成功后把 client_id 持久化回 DB，下次不用重新注册
+		if cid := handler.GetClientID(); cid != "" {
+			m.db.Model(&core.MCPConnection{}).Where("id = ?", cfg.ID).
+				Update("o_auth_client_id", cid)
+		}
+		if cs := handler.GetClientSecret(); cs != "" {
+			m.db.Model(&core.MCPConnection{}).Where("id = ?", cfg.ID).
+				Update("o_auth_client_secret", cs)
+		}
+	}
+
 	state, err := transport.GenerateState()
 	if err != nil {
 		return "", fmt.Errorf("generate state: %w", err)

@@ -171,7 +171,7 @@ func (d *Deps) handleScanCluster(c *gin.Context) {
 	// 清空旧文档（全量重建）
 	_ = knowledge.DeleteAllPages(d.DB)
 
-	bgCtx, bgCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	bgCtx, bgCancel := context.WithTimeout(context.Background(), 30*time.Minute)
 
 	go func() {
 		defer bgCancel()

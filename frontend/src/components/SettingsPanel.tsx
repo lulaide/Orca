@@ -120,9 +120,14 @@ function LLMSection({ status, onSaved }: { status: StatusResponse | null; onSave
             <Field label="Endpoint（留空用默认）">
               <input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} className={INPUT_CLS} />
             </Field>
-            <Field label="API Key *">
-              <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} type="password" placeholder="sk-..." className={INPUT_CLS} required />
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="API Key *">
+                <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} type="password" placeholder="sk-..." className={INPUT_CLS} required />
+              </Field>
+              <Field label="最大迭代轮数">
+                <input value={maxIter} onChange={(e) => setMaxIter(Number(e.target.value))} type="number" min={1} max={200} className={INPUT_CLS} />
+              </Field>
+            </div>
             <div className="flex gap-2">
               <button type="submit" disabled={busy || !provider || !model || !apiKey}
                 className="h-8 px-4 rounded bg-[var(--color-accent)] text-[var(--color-bg)] disabled:opacity-50 font-mono text-[11px] uppercase tracking-[0.15em]">

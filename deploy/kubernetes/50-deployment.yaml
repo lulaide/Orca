@@ -27,7 +27,7 @@ spec:
       containers:
         - name: orca
           image: ghcr.io/lulaide/orca:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8080

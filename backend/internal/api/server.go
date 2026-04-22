@@ -30,6 +30,7 @@ type Deps struct {
 	MCP        *mcp.Manager
 	FrontendFS embed.FS
 	JWTSecret  string
+	OAuth      *auth.OAuthManager
 }
 
 // NewRouter 创建并返回 gin 路由。
@@ -60,6 +61,8 @@ func NewRouter(d *Deps) *gin.Engine {
 		authGroup.GET("/status", d.handleAuthStatus)
 		authGroup.POST("/setup", d.handleAuthSetup)
 		authGroup.POST("/login", d.handleAuthLogin)
+		authGroup.GET("/oauth/authorize", d.handleOAuthAuthorize)
+		authGroup.GET("/oauth/callback", d.handleOAuthCallback)
 	}
 
 	// Webhook（用 plugin secret token 自带认证）
@@ -75,6 +78,10 @@ func NewRouter(d *Deps) *gin.Engine {
 		// 系统状态
 		api.GET("/status", d.handleStatus)
 		api.GET("/cluster/metrics", d.handleClusterMetrics)
+
+		// 设置: OAuth
+		api.GET("/auth/oauth/config", d.handleGetOAuthConfig)
+		api.POST("/auth/oauth/config", d.handleSetOAuthConfig)
 
 		// 设置: LLM
 		api.GET("/settings/llm", d.handleGetLLMSettings)

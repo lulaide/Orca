@@ -24,7 +24,37 @@ export function authFetch(url: string, init?: RequestInit): Promise<Response> {
 
 export interface AuthStatus {
   initialized: boolean
+  oauth_enabled?: boolean
+  oauth_provider_name?: string
   user?: { id: string; username: string; role: string }
+}
+
+export interface OAuthConfig {
+  enabled: boolean
+  provider_name: string
+  issuer_url: string
+  client_id: string
+  client_secret?: string
+  scopes: string
+  default_role: string
+}
+
+export async function getOAuthConfig(): Promise<OAuthConfig> {
+  const res = await authFetch('/api/auth/oauth/config')
+  if (!res.ok) throw new Error(`oauth config: ${res.status}`)
+  return res.json()
+}
+
+export async function setOAuthConfig(config: OAuthConfig): Promise<void> {
+  const res = await authFetch('/api/auth/oauth/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || `save oauth: ${res.status}`)
+  }
 }
 
 export async function getAuthStatus(): Promise<AuthStatus> {

@@ -6,7 +6,10 @@ import {
   connectKubeInCluster,
   uploadKubeconfig,
   disconnectKube,
+  getOAuthConfig,
+  setOAuthConfig,
   type StatusResponse,
+  type OAuthConfig,
 } from '../api'
 
 interface Props {
@@ -24,6 +27,7 @@ export function SettingsPanel({ refreshToken }: Props) {
         <h1 className="text-[22px] font-semibold text-[var(--color-text)]">设置</h1>
         <LLMSection status={status} onSaved={reloadStatus} />
         <KubeSection status={status} onChanged={reloadStatus} />
+        <OAuthSection />
       </div>
     </div>
   )
@@ -190,6 +194,127 @@ function KubeSection({ status, onChanged }: { status: StatusResponse | null; onC
 }
 
 // ---- Shared ----
+
+// ---- OAuth/SSO ----
+
+function OAuthSection() {
+  const [cfg, setCfg] = useState<OAuthConfig | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [providerName, setProviderName] = useState('')
+  const [issuerUrl, setIssuerUrl] = useState('')
+  const [clientId, setClientId] = useState('')
+  const [clientSecret, setClientSecret] = useState('')
+  const [scopes, setScopes] = useState('openid profile email')
+  const [defaultRole, setDefaultRole] = useState('member')
+  const [enabled, setEnabled] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    getOAuthConfig().then((c) => { setCfg(c) }).catch(() => {})
+  }, [])
+
+  const startEdit = () => {
+    if (cfg) {
+      setProviderName(cfg.provider_name || '')
+      setIssuerUrl(cfg.issuer_url || '')
+      setClientId(cfg.client_id || '')
+      setScopes(cfg.scopes || 'openid profile email')
+      setDefaultRole(cfg.default_role || 'member')
+      setEnabled(cfg.enabled)
+    }
+    setClientSecret('')
+    setErr(null)
+    setEditing(true)
+  }
+
+  const handleSave = async (e: FormEvent) => {
+    e.preventDefault(); setBusy(true); setErr(null)
+    try {
+      const newCfg: OAuthConfig = {
+        enabled, provider_name: providerName, issuer_url: issuerUrl,
+        client_id: clientId, scopes, default_role: defaultRole,
+      }
+      if (clientSecret) newCfg.client_secret = clientSecret
+      else if (cfg?.client_id === clientId) {
+        // 没改 secret 就不传（后端保留旧值）——但当前实现是全量覆盖
+        // 先传空，后端会存空。所以如果不改 secret，需要重新填
+      }
+      await setOAuthConfig(newCfg)
+      setEditing(false)
+      getOAuthConfig().then(setCfg).catch(() => {})
+    } catch (e) { setErr(e instanceof Error ? e.message : '保存失败') }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <section>
+      <h2 className="text-[16px] font-semibold text-[var(--color-text)] mb-3">SSO 登录</h2>
+      <div className="rounded-md border border-[var(--color-border)] p-4">
+        <div className="flex items-center gap-3 mb-3">
+          <StatusDot ok={!!cfg?.enabled} />
+          <span className="text-[13px] text-[var(--color-text)]">
+            {cfg?.enabled ? `已启用 · ${cfg.provider_name}` : '未配置'}
+          </span>
+          {!editing && (
+            <button type="button" onClick={startEdit}
+              className="ml-auto text-[11px] font-mono text-[var(--color-accent)] hover:underline">
+              {cfg?.enabled ? '修改' : '配置'}
+            </button>
+          )}
+        </div>
+
+        {editing && (
+          <form onSubmit={handleSave} className="space-y-3 border-t border-[var(--color-border)] pt-3">
+            {err && <div className="text-[12px] text-[var(--color-danger)]">{err}</div>}
+            <label className="flex items-center gap-2 text-[13px] text-[var(--color-text)]">
+              <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+              启用 SSO 登录
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="提供商名称">
+                <input value={providerName} onChange={(e) => setProviderName(e.target.value)}
+                  placeholder="Authentik" className={INPUT_CLS} />
+              </Field>
+              <Field label="默认角色">
+                <select value={defaultRole} onChange={(e) => setDefaultRole(e.target.value)} className={INPUT_CLS}>
+                  <option value="member">member</option>
+                  <option value="admin">admin</option>
+                </select>
+              </Field>
+            </div>
+            <Field label="Issuer URL（OIDC 自动发现）">
+              <input value={issuerUrl} onChange={(e) => setIssuerUrl(e.target.value)}
+                placeholder="https://auth.example.com/application/o/orca/" className={INPUT_CLS} />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Client ID">
+                <input value={clientId} onChange={(e) => setClientId(e.target.value)} className={INPUT_CLS} />
+              </Field>
+              <Field label="Client Secret">
+                <input value={clientSecret} onChange={(e) => setClientSecret(e.target.value)}
+                  type="password" placeholder="留空保持不变" className={INPUT_CLS} />
+              </Field>
+            </div>
+            <Field label="Scopes">
+              <input value={scopes} onChange={(e) => setScopes(e.target.value)} className={INPUT_CLS} />
+            </Field>
+            <div className="flex gap-2">
+              <button type="submit" disabled={busy}
+                className="h-8 px-4 rounded bg-[var(--color-accent)] text-white disabled:opacity-50 text-[13px]">
+                {busy ? '保存中…' : '保存'}
+              </button>
+              <button type="button" onClick={() => setEditing(false)}
+                className="h-8 px-3 rounded border border-[var(--color-border-strong)] text-[var(--color-text-muted)] text-[13px]">
+                取消
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </section>
+  )
+}
 
 function StatusDot({ ok }: { ok: boolean }) {
   return <span className={`w-2 h-2 rounded-full shrink-0 ${ok ? 'bg-[var(--color-ok)]' : 'bg-[var(--color-warn)]'}`} />

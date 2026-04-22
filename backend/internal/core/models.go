@@ -107,8 +107,12 @@ type Event struct {
 type User struct {
 	ID           string    `gorm:"primaryKey" json:"id"`
 	Username     string    `gorm:"uniqueIndex" json:"username"`
-	PasswordHash string    `json:"-"` // bcrypt，不暴露给前端
-	Role         string    `gorm:"default:member" json:"role"` // "admin" | "member"
+	PasswordHash string    `json:"-"`                                 // bcrypt，local 用户有，SSO 用户空
+	Role         string    `gorm:"default:member" json:"role"`        // "admin" | "member"
+	Provider     string    `gorm:"default:local" json:"provider"`     // "local" | "authentik" | "oidc" | ...
+	ProviderID   string    `json:"provider_id,omitempty"`             // SSO sub claim
+	Email        string    `json:"email,omitempty"`
+	Avatar       string    `json:"avatar,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 

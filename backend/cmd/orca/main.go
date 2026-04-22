@@ -119,7 +119,10 @@ func main() {
 		log.Fatalf("Auth: %v", err)
 	}
 
-	// 11. HTTP Server
+	// 11. OAuth Manager
+	oauthMgr := auth.NewOAuthManager(gormDB)
+
+	// 12. HTTP Server
 	router := api.NewRouter(&api.Deps{
 		FrontendFS: frontendFS,
 		DB:       gormDB,
@@ -131,6 +134,7 @@ func main() {
 		Router:   eventRouter,
 		MCP:       mcpMgr,
 		JWTSecret: jwtSecret,
+		OAuth:     oauthMgr,
 	})
 
 	addr := cfg.Server.Addr()

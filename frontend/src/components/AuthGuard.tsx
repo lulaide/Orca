@@ -38,7 +38,9 @@ export function AuthGuard({ children, onUser }: Props) {
 
   // 已初始化但未登录
   if (status && status.initialized && !status.user) {
-    return <LoginPage onDone={check} />
+    return <LoginPage onDone={check}
+      oauthEnabled={!!status.oauth_enabled}
+      oauthProviderName={status.oauth_provider_name || 'SSO'} />
   }
 
   // 已登录
@@ -102,11 +104,26 @@ function SetupPage({ onDone }: { onDone: () => void }) {
   )
 }
 
-function LoginPage({ onDone }: { onDone: () => void }) {
+function LoginPage({ onDone, oauthEnabled, oauthProviderName }: {
+  onDone: () => void; oauthEnabled: boolean; oauthProviderName: string
+}) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // SSO postMessage 监听
+  useEffect(() => {
+    if (!oauthEnabled) return
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'orca-sso-done' && e.data.token) {
+        setToken(e.data.token)
+        onDone()
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [oauthEnabled, onDone])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -120,6 +137,10 @@ function LoginPage({ onDone }: { onDone: () => void }) {
     } finally { setBusy(false) }
   }
 
+  const handleSSO = () => {
+    window.open('/api/auth/oauth/authorize', 'orca-sso', 'width=600,height=700')
+  }
+
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-[var(--color-bg)]">
       <div className="w-full max-w-sm px-6">
@@ -127,12 +148,29 @@ function LoginPage({ onDone }: { onDone: () => void }) {
           <h1 className="text-[28px] font-semibold text-[var(--color-text)] mb-2">Orca</h1>
           <p className="text-[14px] text-[var(--color-text-muted)]">登录以继续</p>
         </div>
+
+        {oauthEnabled && (
+          <div className="mb-6">
+            <button type="button" onClick={handleSSO}
+              className="w-full h-10 rounded-md border border-[var(--color-border-strong)]
+                bg-[var(--color-bg)] text-[14px] text-[var(--color-text)]
+                hover:bg-[var(--color-surface-2)] transition-colors font-medium">
+              通过 {oauthProviderName} 登录
+            </button>
+            <div className="flex items-center gap-3 my-5">
+              <div className="flex-1 border-t border-[var(--color-border)]" />
+              <span className="text-[12px] text-[var(--color-text-dim)]">或用密码登录</span>
+              <div className="flex-1 border-t border-[var(--color-border)]" />
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {err && <div className="text-[13px] text-[var(--color-danger)]">{err}</div>}
           <div>
             <label className="block text-[13px] text-[var(--color-text-muted)] mb-1">用户名</label>
             <input value={username} onChange={(e) => setUsername(e.target.value)}
-              className={INPUT_CLS} required autoFocus />
+              className={INPUT_CLS} required autoFocus={!oauthEnabled} />
           </div>
           <div>
             <label className="block text-[13px] text-[var(--color-text-muted)] mb-1">密码</label>

@@ -46,7 +46,7 @@ export function KnowledgePanel() {
           tool_calls: msg.tool_calls as { name: string; arguments: string }[],
         }])
       },
-      onDone: () => { setScanning(false); reload() },
+      onDone: () => { setScanning(false); setShowLog(false); reload() },
       onError: (err) => {
         setScanLog((prev) => [...prev, { id: ++logIdRef.current, role: 'error', content: err }])
         setScanning(false)
@@ -105,7 +105,7 @@ export function KnowledgePanel() {
           tool_calls: msg.tool_calls as { name: string; arguments: string }[],
         }])
       },
-      onDone: () => { setScanning(false); reload() },
+      onDone: () => { setScanning(false); setShowLog(false); reload() },
       onError: (err) => {
         setScanLog((prev) => [...prev, { id: ++logIdRef.current, role: 'error', content: err }])
         setScanning(false)
@@ -157,7 +157,7 @@ export function KnowledgePanel() {
         </div>
       )}
 
-      {selectedPage && !showLog && (
+      {selectedPage && (
         <PageContent page={selectedPage} onUpdated={reload} />
       )}
 

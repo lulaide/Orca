@@ -207,7 +207,6 @@ function AddConnectionForm({ onCreated }: { onCreated: () => void }) {
   const [command, setCommand] = useState('')
   const [args, setArgs] = useState('')
   const [authType, setAuthType] = useState('oauth')
-  const [authToken, setAuthToken] = useState('')
   const [headers, setHeaders] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -230,8 +229,7 @@ function AddConnectionForm({ onCreated }: { onCreated: () => void }) {
         command: isStdio ? command : undefined,
         args: isStdio && args ? args.split(/\s+/) : undefined,
         url: !isStdio ? url : undefined,
-        auth_type: !isStdio ? authType as 'none' | 'bearer' | 'oauth' : undefined,
-        auth_token: authType === 'bearer' ? authToken : undefined,
+        auth_type: !isStdio ? authType as 'none' | 'oauth' : undefined,
         headers: parsedHeaders,
       })
       onCreated()
@@ -282,15 +280,8 @@ function AddConnectionForm({ onCreated }: { onCreated: () => void }) {
               <span className="text-[11px] font-mono text-[var(--color-text-dim)] mb-1 block">认证</span>
               <select value={authType} onChange={(e) => setAuthType(e.target.value)} className={INPUT_CLS}>
                 <option value="oauth">OAuth 2.1</option>
-                <option value="bearer">Bearer Token</option>
-                <option value="none">无</option>
+                <option value="none">自定义请求头</option>
               </select>
-            </label>
-          )}
-          {authType === 'bearer' && (
-            <label className="block">
-              <span className="text-[11px] font-mono text-[var(--color-text-dim)] mb-1 block">Token</span>
-              <input value={authToken} onChange={(e) => setAuthToken(e.target.value)} type="password" className={INPUT_CLS} />
             </label>
           )}
           {authType !== 'oauth' && (

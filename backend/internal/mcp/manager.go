@@ -221,10 +221,6 @@ func (m *Manager) createClient(ctx context.Context, cfg *core.MCPConnection) (mc
 		var sseOpts []transport.ClientOption
 		if oauthCfg != nil {
 			sseOpts = append(sseOpts, transport.WithOAuth(*oauthCfg))
-		} else if cfg.AuthType == "bearer" && cfg.AuthToken != "" {
-			sseOpts = append(sseOpts, transport.WithHeaders(map[string]string{
-				"Authorization": "Bearer " + cfg.AuthToken,
-			}))
 		}
 		// 自定义请求头（非 OAuth 模式下生效）
 		if len(cfg.Headers) > 0 && cfg.AuthType != "oauth" {
@@ -282,12 +278,8 @@ func (m *Manager) tryStreamableHTTP(ctx context.Context, cancel context.CancelFu
 	var httpOpts []transport.StreamableHTTPCOption
 	if oauthCfg != nil {
 		httpOpts = append(httpOpts, transport.WithHTTPOAuth(*oauthCfg))
-	} else if cfg.AuthType == "bearer" && cfg.AuthToken != "" {
-		httpOpts = append(httpOpts, transport.WithHTTPHeaders(map[string]string{
-			"Authorization": "Bearer " + cfg.AuthToken,
-		}))
 	}
-	// 自定义请求头
+	// 自定义请求头（非 OAuth 模式下生效）
 	if len(cfg.Headers) > 0 && cfg.AuthType != "oauth" {
 		var hdrs map[string]string
 		if json.Unmarshal(cfg.Headers, &hdrs) == nil && len(hdrs) > 0 {

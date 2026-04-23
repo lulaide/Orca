@@ -13,8 +13,13 @@ import (
 )
 
 // DB 全局数据库句柄，由 main.go 启动时赋值。
-// Investigation 工具的 handler 直接读它做 CRUD。
 var DB *gorm.DB
+
+// NotifyMgr 全局通知管理器，由 main.go 启动时赋值。可为 nil。
+var NotifyMgr interface {
+	NotifyInvestigationCreated(inv *core.Investigation)
+	NotifyInvestigationResolved(inv *core.Investigation)
+}
 
 // RegisterInvestigationTools 注册 Investigation 相关的 LLM 工具。
 // 不含归档/删除——归档由人工决定，避免 LLM 幻觉误操作。
@@ -350,6 +355,11 @@ func handleCreateInvestigation(ctx context.Context, args string) (string, error)
 		return "", fmt.Errorf("create investigation: %w", err)
 	}
 
+	// 通知
+	if NotifyMgr != nil {
+		NotifyMgr.NotifyInvestigationCreated(inv)
+	}
+
 	// 关联到当前对话（若 ctx 里有 convID）
 	if convID := ConversationIDFromContext(ctx); convID != "" {
 		if err := core.AppendInvestigationToConversation(db, convID, inv.ID); err != nil {
@@ -486,6 +496,12 @@ func handleResolveInvestigation(ctx context.Context, args string) (string, error
 	if err != nil {
 		return "", fmt.Errorf("resolve: %w", err)
 	}
+
+	// 通知
+	if NotifyMgr != nil {
+		NotifyMgr.NotifyInvestigationResolved(inv)
+	}
+
 	b, _ := json.Marshal(resolveResult{ID: inv.ID, Status: inv.Status})
 	return string(b), nil
 }

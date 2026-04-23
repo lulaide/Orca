@@ -14,6 +14,7 @@ import (
 	"github.com/lulaide/orca/internal/kube"
 	"github.com/lulaide/orca/internal/llm"
 	"github.com/lulaide/orca/internal/mcp"
+	"github.com/lulaide/orca/internal/notify"
 	"github.com/lulaide/orca/internal/tools"
 	"github.com/lulaide/orca/internal/triggers"
 )
@@ -122,7 +123,11 @@ func main() {
 		log.Fatalf("Auth: %v", err)
 	}
 
-	// 11. OAuth Manager
+	// 11. Notification Manager
+	notifyMgr := notify.NewManager(gormDB)
+	tools.NotifyMgr = notifyMgr
+
+	// 12. OAuth Manager
 	oauthMgr := auth.NewOAuthManager(gormDB)
 
 	// 12. HTTP Server
@@ -138,6 +143,7 @@ func main() {
 		MCP:       mcpMgr,
 		JWTSecret: jwtSecret,
 		OAuth:     oauthMgr,
+		Notify:    notifyMgr,
 	})
 
 	addr := cfg.Server.Addr()

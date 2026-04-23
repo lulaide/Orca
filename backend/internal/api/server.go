@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/lulaide/orca/internal/auth"
+	"github.com/lulaide/orca/internal/notify"
 	"github.com/lulaide/orca/internal/dispatch"
 	"github.com/lulaide/orca/internal/kube"
 	"github.com/lulaide/orca/internal/llm"
@@ -31,6 +32,7 @@ type Deps struct {
 	FrontendFS embed.FS
 	JWTSecret  string
 	OAuth      *auth.OAuthManager
+	Notify     *notify.Manager
 }
 
 // NewRouter 创建并返回 gin 路由。
@@ -82,6 +84,11 @@ func NewRouter(d *Deps) *gin.Engine {
 		// 设置: 站点
 		api.GET("/settings/site", d.handleGetSiteSettings)
 		api.PUT("/settings/site", d.handleUpdateSiteSettings)
+
+		// 设置: 通知
+		api.GET("/settings/notification", d.handleGetNotificationSettings)
+		api.PUT("/settings/notification", d.handleUpdateNotificationSettings)
+		api.POST("/settings/notification/test", d.handleTestNotification)
 
 		// 设置: OAuth
 		api.GET("/auth/oauth/config", d.handleGetOAuthConfig)

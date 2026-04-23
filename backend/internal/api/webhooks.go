@@ -97,6 +97,11 @@ func (d *Deps) handleWebhook(c *gin.Context) {
 	}
 	log.Printf("webhook %s: event %s created (severity=%s)", name, ev.ID, ev.Severity)
 
+	// 通知
+	if d.Notify != nil {
+		d.Notify.NotifyEvent(ev)
+	}
+
 	// 异步启动 Agent Loop
 	if d.Router != nil {
 		d.Router.Dispatch(ev)

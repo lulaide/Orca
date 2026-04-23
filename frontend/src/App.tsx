@@ -11,6 +11,7 @@ import { EventDetailPanel } from './components/EventDetailPanel'
 import { TriggersPanel } from './components/TriggersPanel'
 import { MCPPanel } from './components/MCPPanel'
 import { KnowledgePanel } from './components/KnowledgePanel'
+import { NotificationPanel } from './components/NotificationPanel'
 import { SettingsPanel } from './components/SettingsPanel'
 import type { InvestigationView, ReferencedInvestigation, AuthStatus } from './api'
 
@@ -24,10 +25,12 @@ type Route =
   | { module: 'knowledge'; slug: string | null }
   | { module: 'triggers' }
   | { module: 'mcp' }
+  | { module: 'notifications' }
   | { module: 'settings' }
 
 function parseRoute(pathname: string, search: string): Route {
   // /settings
+  if (pathname === '/notifications' || pathname === '/notifications/') return { module: 'notifications' }
   if (pathname === '/settings' || pathname === '/settings/') return { module: 'settings' }
   // /triggers
   if (pathname === '/triggers' || pathname === '/triggers/') return { module: 'triggers' }
@@ -98,6 +101,7 @@ function App() {
       knowledge: '/knowledge',
       triggers: '/triggers',
       mcp: '/mcp',
+      notifications: '/notifications',
       settings: '/settings',
     }
     nav(paths[m])
@@ -189,6 +193,9 @@ function App() {
         )}
         {route.module === 'mcp' && (
           <MCPPanel />
+        )}
+        {route.module === 'notifications' && (
+          <NotificationPanel />
         )}
         {route.module === 'settings' && (
           <SettingsPanel refreshToken={refreshToken} />

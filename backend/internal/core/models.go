@@ -149,6 +149,7 @@ type MCPConnection struct {
 	OAuthClientSecret string         `json:"oauth_client_secret,omitempty"`
 	OAuthScopes       string         `json:"oauth_scopes,omitempty"`                // 空格分隔
 	OAuthToken        datatypes.JSON `gorm:"type:jsonb" json:"oauth_token,omitempty"` // 持久化 Token JSON
+	OAuthLocalhost    bool           `gorm:"default:false" json:"oauth_localhost"`     // 使用 localhost 回调
 	//
 	Description string    `json:"description,omitempty"`
 	Enabled     bool      `gorm:"default:true" json:"enabled"`

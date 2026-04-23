@@ -253,10 +253,14 @@ func (m *Manager) buildOAuthConfig(cfg *core.MCPConnection) *mcpclient.OAuthConf
 		return nil
 	}
 	tokenStore := NewDBTokenStore(m.db, cfg.ID)
+	redirectURI := m.oauthRedirectURI()
+	if cfg.OAuthLocalhost {
+		redirectURI = "http://localhost/api/mcp/oauth/callback"
+	}
 	oauthCfg := mcpclient.OAuthConfig{
 		ClientID:     cfg.OAuthClientID,
 		ClientSecret: cfg.OAuthClientSecret,
-		RedirectURI:  m.oauthRedirectURI(),
+		RedirectURI:  redirectURI,
 		TokenStore:   tokenStore,
 		PKCEEnabled:  true,
 	}

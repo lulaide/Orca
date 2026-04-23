@@ -226,6 +226,9 @@ func (d *Deps) handleMCPOAuthLocalCallback(c *gin.Context) {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
+	// 标记此连接使用 localhost 回调
+	d.DB.Model(&core.MCPConnection{}).Where("id = ?", c.Param("id")).
+		Update("o_auth_localhost", true)
 	c.JSON(200, gin.H{"connected": true, "name": connName})
 }
 

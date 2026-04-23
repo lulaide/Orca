@@ -682,6 +682,7 @@ export interface CreateMCPConnectionInput {
   oauth_client_id?: string
   oauth_client_secret?: string
   oauth_scopes?: string
+  headers?: Record<string, string>
   description?: string
 }
 

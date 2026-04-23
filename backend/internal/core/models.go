@@ -142,8 +142,9 @@ type MCPConnection struct {
 	// sse 字段
 	URL string `json:"url,omitempty"`
 	// auth 字段
-	AuthType  string `json:"auth_type,omitempty"`  // "none" | "bearer" | "oauth"
-	AuthToken string `json:"auth_token,omitempty"` // bearer 模式的静态 token
+	AuthType  string         `json:"auth_type,omitempty"`  // "none" | "bearer" | "oauth" | "header"
+	AuthToken string         `json:"auth_token,omitempty"` // bearer 模式的静态 token
+	Headers   datatypes.JSON `gorm:"type:jsonb" json:"headers,omitempty"` // 自定义请求头 {"X-Api-Key":"xxx"}
 	// OAuth 字段
 	OAuthClientID     string         `json:"oauth_client_id,omitempty"`
 	OAuthClientSecret string         `json:"oauth_client_secret,omitempty"`

@@ -20,8 +20,9 @@ type CreateMCPConnectionInput struct {
 	AuthToken         string   `json:"auth_token,omitempty"`
 	OAuthClientID     string   `json:"oauth_client_id,omitempty"`
 	OAuthClientSecret string   `json:"oauth_client_secret,omitempty"`
-	OAuthScopes       string   `json:"oauth_scopes,omitempty"`
-	Description       string   `json:"description,omitempty"`
+	OAuthScopes       string            `json:"oauth_scopes,omitempty"`
+	Headers           map[string]string `json:"headers,omitempty"`
+	Description       string            `json:"description,omitempty"`
 }
 
 var validTransports = map[string]bool{"stdio": true, "sse": true}
@@ -65,6 +66,9 @@ func CreateMCPConnection(db *gorm.DB, in CreateMCPConnectionInput) (*MCPConnecti
 	}
 	if len(in.Env) > 0 {
 		conn.Env = mustJSON(in.Env)
+	}
+	if len(in.Headers) > 0 {
+		conn.Headers = mustJSON(in.Headers)
 	}
 
 	if err := db.Create(conn).Error; err != nil {

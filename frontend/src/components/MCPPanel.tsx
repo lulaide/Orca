@@ -208,6 +208,7 @@ function AddConnectionForm({ onCreated }: { onCreated: () => void }) {
   const [args, setArgs] = useState('')
   const [authType, setAuthType] = useState('oauth')
   const [authToken, setAuthToken] = useState('')
+  const [headers, setHeaders] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const isStdio = transport === 'stdio'
@@ -215,6 +216,15 @@ function AddConnectionForm({ onCreated }: { onCreated: () => void }) {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true); setErr(null)
     try {
+      // 解析 headers（每行一个 Key: Value）
+      let parsedHeaders: Record<string, string> | undefined
+      if (headers.trim()) {
+        parsedHeaders = {}
+        for (const line of headers.split('\n')) {
+          const idx = line.indexOf(':')
+          if (idx > 0) parsedHeaders[line.slice(0, idx).trim()] = line.slice(idx + 1).trim()
+        }
+      }
       await createMCPConnection({
         name, transport,
         command: isStdio ? command : undefined,
@@ -222,6 +232,7 @@ function AddConnectionForm({ onCreated }: { onCreated: () => void }) {
         url: !isStdio ? url : undefined,
         auth_type: !isStdio ? authType as 'none' | 'bearer' | 'oauth' : undefined,
         auth_token: authType === 'bearer' ? authToken : undefined,
+        headers: parsedHeaders,
       })
       onCreated()
     } catch (e) { setErr(e instanceof Error ? e.message : '创建失败') }
@@ -280,6 +291,14 @@ function AddConnectionForm({ onCreated }: { onCreated: () => void }) {
             <label className="block">
               <span className="text-[11px] font-mono text-[var(--color-text-dim)] mb-1 block">Token</span>
               <input value={authToken} onChange={(e) => setAuthToken(e.target.value)} type="password" className={INPUT_CLS} />
+            </label>
+          )}
+          {authType !== 'oauth' && (
+            <label className="block">
+              <span className="text-[11px] font-mono text-[var(--color-text-dim)] mb-1 block">自定义请求头（每行一个，格式 Key: Value）</span>
+              <textarea value={headers} onChange={(e) => setHeaders(e.target.value)}
+                rows={3} placeholder={"X-Api-Key: your-key\nX-Custom: value"}
+                className={INPUT_CLS + ' resize-y'} />
             </label>
           )}
         </div>

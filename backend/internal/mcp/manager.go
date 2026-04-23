@@ -226,6 +226,13 @@ func (m *Manager) createClient(ctx context.Context, cfg *core.MCPConnection) (mc
 				"Authorization": "Bearer " + cfg.AuthToken,
 			}))
 		}
+		// 自定义请求头（非 OAuth 模式下生效）
+		if len(cfg.Headers) > 0 && cfg.AuthType != "oauth" {
+			var hdrs map[string]string
+			if json.Unmarshal(cfg.Headers, &hdrs) == nil && len(hdrs) > 0 {
+				sseOpts = append(sseOpts, transport.WithHeaders(hdrs))
+			}
+		}
 		sseTransport, err := transport.NewSSE(cfg.URL, sseOpts...)
 		if err != nil {
 			cancel()
@@ -279,6 +286,13 @@ func (m *Manager) tryStreamableHTTP(ctx context.Context, cancel context.CancelFu
 		httpOpts = append(httpOpts, transport.WithHTTPHeaders(map[string]string{
 			"Authorization": "Bearer " + cfg.AuthToken,
 		}))
+	}
+	// 自定义请求头
+	if len(cfg.Headers) > 0 && cfg.AuthType != "oauth" {
+		var hdrs map[string]string
+		if json.Unmarshal(cfg.Headers, &hdrs) == nil && len(hdrs) > 0 {
+			httpOpts = append(httpOpts, transport.WithHTTPHeaders(hdrs))
+		}
 	}
 	httpTransport, err := transport.NewStreamableHTTP(cfg.URL, httpOpts...)
 	if err != nil {

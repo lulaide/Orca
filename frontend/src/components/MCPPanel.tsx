@@ -5,7 +5,6 @@ import {
   deleteMCPConnection,
   reconnectMCPConnection,
   updateMCPConnection,
-  getMCPOAuthURL,
   authFetch,
   type MCPConnectionInfo,
   type MCPTransport,

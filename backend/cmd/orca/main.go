@@ -108,6 +108,9 @@ func main() {
 	// 8. Trigger 插件注册表（编译期注册所有已知插件类型）
 	triggerReg := triggers.NewRegistry()
 	triggerReg.Register(triggers.UptimeKuma{})
+	triggerReg.Register(triggers.AlertManager{})
+	triggerReg.Register(triggers.Grafana{})
+	triggerReg.Register(triggers.GenericWebhook{})
 	log.Printf("Triggers: registered plugins: %v", pluginNames(triggerReg))
 
 	// 9. Event Router：把 Event 分派到后台 Agent Loop

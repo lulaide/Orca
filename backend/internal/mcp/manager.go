@@ -57,6 +57,7 @@ type PendingOAuth struct {
 	ConnName     string
 	State        string
 	CodeVerifier string
+	RedirectURI  string // 发起授权时用的 redirect_uri，回调时必须一致
 	Handler      *OAuthHandlerRef
 }
 
@@ -385,13 +386,18 @@ func (m *Manager) Close() {
 // StartOAuth 发起 OAuth 授权流程，返回授权 URL。
 // 通过创建 SSE transport 并 Start() 来触发 OAuth 401 → OAuthAuthorizationRequiredError，
 // 从中提取 OAuthHandler 来生成授权 URL。
-func (m *Manager) StartOAuth(ctx context.Context, cfg *core.MCPConnection) (string, error) {
+func (m *Manager) StartOAuth(ctx context.Context, cfg *core.MCPConnection, useLocalhost bool) (string, error) {
 	tokenStore := NewDBTokenStore(m.db, cfg.ID)
+
+	redirectURI := m.oauthRedirectURI()
+	if useLocalhost {
+		redirectURI = "http://localhost/api/mcp/oauth/callback"
+	}
 
 	oauthCfg := mcpclient.OAuthConfig{
 		ClientID:     cfg.OAuthClientID,
 		ClientSecret: cfg.OAuthClientSecret,
-		RedirectURI:  m.oauthRedirectURI(),
+		RedirectURI:  redirectURI,
 		TokenStore:   tokenStore,
 		PKCEEnabled:  true,
 	}
@@ -410,7 +416,7 @@ func (m *Manager) StartOAuth(ctx context.Context, cfg *core.MCPConnection) (stri
 	if err != nil {
 		var oauthErr *transport.OAuthAuthorizationRequiredError
 		if errors.As(err, &oauthErr) && oauthErr.Handler != nil {
-			return m.buildAuthURL(ctx, cfg, oauthErr.Handler, tokenStore)
+			return m.buildAuthURL(ctx, cfg, oauthErr.Handler, tokenStore, redirectURI)
 		}
 		return "", fmt.Errorf("start transport: %w", err)
 	}
@@ -420,7 +426,7 @@ func (m *Manager) StartOAuth(ctx context.Context, cfg *core.MCPConnection) (stri
 	return "", nil
 }
 
-func (m *Manager) buildAuthURL(ctx context.Context, cfg *core.MCPConnection, handler *transport.OAuthHandler, tokenStore *DBTokenStore) (string, error) {
+func (m *Manager) buildAuthURL(ctx context.Context, cfg *core.MCPConnection, handler *transport.OAuthHandler, tokenStore *DBTokenStore, redirectURI string) (string, error) {
 	// 如果没有 client_id，先做动态客户端注册
 	if handler.GetClientID() == "" {
 		if err := handler.RegisterClient(ctx, "Orca"); err != nil {
@@ -459,6 +465,7 @@ func (m *Manager) buildAuthURL(ctx context.Context, cfg *core.MCPConnection, han
 		ConnName:     cfg.Name,
 		State:        state,
 		CodeVerifier: codeVerifier,
+		RedirectURI:  redirectURI,
 		Handler: &OAuthHandlerRef{
 			TokenStore: tokenStore,
 		},
@@ -490,7 +497,7 @@ func (m *Manager) HandleOAuthCallback(ctx context.Context, code, state string) (
 	oauthCfg := mcpclient.OAuthConfig{
 		ClientID:     cfg.OAuthClientID,
 		ClientSecret: cfg.OAuthClientSecret,
-		RedirectURI:  m.oauthRedirectURI(),
+		RedirectURI:  pending.RedirectURI,
 		TokenStore:   tokenStore,
 		PKCEEnabled:  true,
 	}

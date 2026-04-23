@@ -6,6 +6,7 @@ import {
   reconnectMCPConnection,
   updateMCPConnection,
   getMCPOAuthURL,
+  authFetch,
   type MCPConnectionInfo,
   type MCPTransport,
 } from '../api'
@@ -74,6 +75,10 @@ export function MCPPanel() {
 function ConnectionRow({ conn, onChanged }: { conn: MCPConnectionInfo; onChanged: () => void }) {
   const [expanded, setExpanded] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [useLocalhost, setUseLocalhost] = useState(false)
+  const [callbackUrl, setCallbackUrl] = useState('')
+  const [showPaste, setShowPaste] = useState(false)
+  const [pasteErr, setPasteErr] = useState<string | null>(null)
 
   const statusColor =
     conn.status === 'connected' ? 'var(--color-ok)' :
@@ -116,15 +121,64 @@ function ConnectionRow({ conn, onChanged }: { conn: MCPConnectionInfo; onChanged
             {conn.url && <div>url: {conn.url}</div>}
             {conn.command && <div>cmd: {conn.command}</div>}
           </div>
-          <div className="flex items-center gap-2">
-            {conn.status === 'needs_auth' && <Btn onClick={() => act(async () => {
-              const r = await getMCPOAuthURL(conn.id)
-              if (r.authorize_url) window.open(r.authorize_url, 'orca-mcp-oauth', 'width=600,height=700')
-            })} disabled={busy}>授权</Btn>}
+          <div className="flex items-center gap-2 flex-wrap">
+            {conn.status === 'needs_auth' && (
+              <>
+                <Btn onClick={async () => {
+                  setBusy(true)
+                  try {
+                    const url = `/api/mcp/connections/${conn.id}/oauth/authorize${useLocalhost ? '?localhost=1' : ''}`
+                    const res = await authFetch(url)
+                    const r = await res.json() as { authorize_url?: string }
+                    if (r.authorize_url) {
+                      window.open(r.authorize_url, 'orca-mcp-oauth', 'width=600,height=700')
+                      if (useLocalhost) setShowPaste(true)
+                    } else { onChanged() }
+                  } catch { /* */ } finally { setBusy(false) }
+                }} disabled={busy}>授权</Btn>
+                <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-dim)]">
+                  <input type="checkbox" checked={useLocalhost} onChange={(e) => setUseLocalhost(e.target.checked)} />
+                  使用 localhost 回调
+                </label>
+              </>
+            )}
             {conn.enabled && conn.status !== 'needs_auth' && <Btn onClick={() => act(() => reconnectMCPConnection(conn.id))} disabled={busy}>重连</Btn>}
             <Btn onClick={() => act(() => updateMCPConnection(conn.id, { enabled: !conn.enabled }))} disabled={busy}>{conn.enabled ? '禁用' : '启用'}</Btn>
             <Btn onClick={() => { if (confirm(`删除 "${conn.name}"？`)) act(() => deleteMCPConnection(conn.id)) }} disabled={busy} danger>删除</Btn>
           </div>
+
+          {showPaste && (
+            <div className="mt-3 border-t border-[var(--color-border)] pt-3 space-y-2">
+              <p className="text-[12px] text-[var(--color-text-muted)]">
+                在弹出窗口完成授权后，浏览器会跳转到 localhost（无法访问）。
+                从浏览器地址栏复制完整 URL 粘贴到下方：
+              </p>
+              {pasteErr && <p className="text-[12px] text-[var(--color-danger)]">{pasteErr}</p>}
+              <input value={callbackUrl} onChange={(e) => setCallbackUrl(e.target.value)}
+                placeholder="http://localhost/api/mcp/oauth/callback?code=...&state=..."
+                className="w-full px-2.5 py-1.5 rounded border border-[var(--color-border-strong)]
+                  bg-[var(--color-bg)] text-[12px] text-[var(--color-text)]
+                  focus:outline-none focus:border-[var(--color-accent)]
+                  placeholder-[var(--color-text-dim)] font-mono" />
+              <Btn onClick={async () => {
+                setBusy(true); setPasteErr(null)
+                try {
+                  const res = await authFetch(`/api/mcp/connections/${conn.id}/oauth/local-callback`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ callback_url: callbackUrl }),
+                  })
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({}))
+                    setPasteErr((err as {error?: string}).error || '失败')
+                  } else {
+                    setShowPaste(false); setCallbackUrl(''); onChanged()
+                  }
+                } catch (e) { setPasteErr(e instanceof Error ? e.message : '失败') }
+                finally { setBusy(false) }
+              }} disabled={busy || !callbackUrl}>提交</Btn>
+            </div>
+          )}
         </div>
       )}
     </div>

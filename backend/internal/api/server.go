@@ -144,6 +144,7 @@ func NewRouter(d *Deps) *gin.Engine {
 		api.DELETE("/mcp/connections/:id", d.handleDeleteMCPConnection)
 		api.POST("/mcp/connections/:id/reconnect", d.handleReconnectMCPConnection)
 		api.GET("/mcp/connections/:id/oauth/authorize", d.handleMCPOAuthAuthorize)
+		api.POST("/mcp/connections/:id/oauth/local-callback", d.handleMCPOAuthLocalCallback)
 	}
 
 	// 前端静态文件

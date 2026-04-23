@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 
@@ -182,7 +183,8 @@ func (d *Deps) handleMCPOAuthAuthorize(c *gin.Context) {
 		return
 	}
 
-	authURL, err := d.MCP.StartOAuth(context.Background(), conn)
+	useLocalhost := c.Query("localhost") == "1"
+	authURL, err := d.MCP.StartOAuth(context.Background(), conn, useLocalhost)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
@@ -193,6 +195,38 @@ func (d *Deps) handleMCPOAuthAuthorize(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{"authorize_url": authURL})
+}
+
+// handleMCPOAuthLocalCallback 粘贴 localhost 回调 URL 完成授权。
+// 部分 MCP Server（如 Cloudflare）不支持自定义回调域名，只接受 localhost。
+// 用户在浏览器完成授权后，从地址栏复制完整 URL 粘贴到此接口。
+func (d *Deps) handleMCPOAuthLocalCallback(c *gin.Context) {
+	var req struct {
+		CallbackURL string `json:"callback_url" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	u, err := url.Parse(req.CallbackURL)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "无效的 URL"})
+		return
+	}
+	code := u.Query().Get("code")
+	state := u.Query().Get("state")
+	if code == "" || state == "" {
+		c.JSON(400, gin.H{"error": "URL 中缺少 code 或 state 参数"})
+		return
+	}
+
+	connName, err := d.MCP.HandleOAuthCallback(context.Background(), code, state)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"connected": true, "name": connName})
 }
 
 // handleMCPOAuthCallback 处理 OAuth 回调。

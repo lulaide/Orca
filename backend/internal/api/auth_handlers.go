@@ -8,6 +8,7 @@ import (
 
 	"github.com/lulaide/orca/internal/auth"
 	"github.com/lulaide/orca/internal/core"
+	"github.com/lulaide/orca/internal/db"
 )
 
 // handleAuthStatus 返回系统认证状态：是否已初始化（有用户）、当前登录用户。
@@ -17,6 +18,14 @@ func (d *Deps) handleAuthStatus(c *gin.Context) {
 	initialized := count > 0
 
 	resp := gin.H{"initialized": initialized}
+
+	// 站点 URL
+	var siteCfg struct {
+		BaseURL string `json:"base_url"`
+	}
+	if found, _ := db.LoadSetting(d.DB, "site", &siteCfg); found && siteCfg.BaseURL != "" {
+		resp["base_url"] = siteCfg.BaseURL
+	}
 
 	// OAuth 状态
 	oauthCfg, _ := auth.LoadOAuthConfig(d.DB)
@@ -59,6 +68,7 @@ func (d *Deps) handleAuthSetup(c *gin.Context) {
 	var req struct {
 		Username string `json:"username" binding:"required"`
 		Password string `json:"password" binding:"required"`
+		BaseURL  string `json:"base_url"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -67,6 +77,11 @@ func (d *Deps) handleAuthSetup(c *gin.Context) {
 	if len(req.Password) < 6 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "密码至少 6 位"})
 		return
+	}
+
+	// 保存站点 URL
+	if req.BaseURL != "" {
+		_ = db.SaveSetting(d.DB, "site", map[string]string{"base_url": req.BaseURL}, "setup")
 	}
 
 	hash, err := auth.HashPassword(req.Password)
@@ -229,7 +244,40 @@ func (d *Deps) handleSetOAuthConfig(c *gin.Context) {
 	c.JSON(200, gin.H{"saved": true})
 }
 
+// handleGetSiteSettings 获取站点配置。
+func (d *Deps) handleGetSiteSettings(c *gin.Context) {
+	var cfg struct {
+		BaseURL string `json:"base_url"`
+	}
+	db.LoadSetting(d.DB, "site", &cfg)
+	c.JSON(200, cfg)
+}
+
+// handleUpdateSiteSettings 更新站点配置。
+func (d *Deps) handleUpdateSiteSettings(c *gin.Context) {
+	var cfg struct {
+		BaseURL string `json:"base_url"`
+	}
+	if err := c.ShouldBindJSON(&cfg); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	if err := db.SaveSetting(d.DB, "site", cfg, "admin"); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"saved": true})
+}
+
 func (d *Deps) oauthRedirectURI(c *gin.Context) string {
+	// 优先从 site 配置读
+	var siteCfg struct {
+		BaseURL string `json:"base_url"`
+	}
+	if found, _ := db.LoadSetting(d.DB, "site", &siteCfg); found && siteCfg.BaseURL != "" {
+		return siteCfg.BaseURL + "/api/auth/oauth/callback"
+	}
+	// fallback
 	scheme := "http"
 	if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" { scheme = "https" }
 	return scheme + "://" + c.Request.Host + "/api/auth/oauth/callback"

@@ -8,6 +8,7 @@ import {
   disconnectKube,
   getOAuthConfig,
   setOAuthConfig,
+  authFetch,
   type StatusResponse,
   type OAuthConfig,
 } from '../api'
@@ -25,6 +26,7 @@ export function SettingsPanel({ refreshToken }: Props) {
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto px-8 py-8 space-y-10">
         <h1 className="text-[22px] font-semibold text-[var(--color-text)]">设置</h1>
+        <SiteSection />
         <LLMSection status={status} onSaved={reloadStatus} />
         <KubeSection status={status} onChanged={reloadStatus} />
         <OAuthSection />
@@ -37,6 +39,61 @@ const INPUT_CLS = `w-full px-2.5 py-1.5 rounded border border-[var(--color-borde
   bg-[var(--color-bg)] text-[13px] text-[var(--color-text)]
   focus:outline-none focus:border-[var(--color-text)]
   placeholder-[var(--color-text-dim)] font-mono transition-colors`
+
+// ---- Site ----
+
+function SiteSection() {
+  const [baseUrl, setBaseUrl] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    authFetch('/api/settings/site').then(r => r.json()).then(d => setBaseUrl(d.base_url || '')).catch(() => {})
+  }, [])
+
+  const handleSave = async (e: FormEvent) => {
+    e.preventDefault(); setBusy(true)
+    try {
+      await authFetch('/api/settings/site', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base_url: baseUrl }),
+      })
+      setEditing(false); setSaved(true); setTimeout(() => setSaved(false), 2000)
+    } catch { /* */ } finally { setBusy(false) }
+  }
+
+  return (
+    <section>
+      <h2 className="text-[16px] font-semibold text-[var(--color-text)] mb-3">站点</h2>
+      <div className="rounded-md border border-[var(--color-border)] p-4">
+        <div className="flex items-center gap-3">
+          <span className="text-[13px] text-[var(--color-text)]">{baseUrl || '未设置'}</span>
+          {saved && <span className="text-[12px] text-[var(--color-ok)]">已保存</span>}
+          {!editing && (
+            <button type="button" onClick={() => setEditing(true)}
+              className="ml-auto text-[11px] font-mono text-[var(--color-accent)] hover:underline">修改</button>
+          )}
+        </div>
+        {editing && (
+          <form onSubmit={handleSave} className="mt-3 border-t border-[var(--color-border)] pt-3 space-y-3">
+            <Field label="站点 URL">
+              <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="https://orca.example.com" className={INPUT_CLS} />
+            </Field>
+            <p className="text-[11px] text-[var(--color-text-dim)]">用于 OAuth 回调、MCP 连接等场景，不要以 / 结尾</p>
+            <div className="flex gap-2">
+              <button type="submit" disabled={busy}
+                className="h-8 px-4 rounded bg-[var(--color-accent)] text-white disabled:opacity-50 text-[13px]">保存</button>
+              <button type="button" onClick={() => setEditing(false)}
+                className="h-8 px-3 rounded border border-[var(--color-border-strong)] text-[var(--color-text-muted)] text-[13px]">取消</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </section>
+  )
+}
 
 // ---- LLM ----
 

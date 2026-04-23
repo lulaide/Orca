@@ -51,6 +51,7 @@ function SetupPage({ onDone }: { onDone: () => void }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [baseUrl, setBaseUrl] = useState(() => window.location.origin)
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -60,7 +61,7 @@ function SetupPage({ onDone }: { onDone: () => void }) {
     if (password.length < 6) { setErr('密码至少 6 位'); return }
     setBusy(true); setErr(null)
     try {
-      const res = await setupAdmin(username, password)
+      const res = await setupAdmin(username, password, baseUrl)
       setToken(res.token)
       onDone()
     } catch (e) {
@@ -73,14 +74,20 @@ function SetupPage({ onDone }: { onDone: () => void }) {
       <div className="w-full max-w-sm px-6">
         <div className="mb-8 text-center">
           <h1 className="text-[28px] font-semibold text-[var(--color-text)] mb-2">欢迎使用 Orca</h1>
-          <p className="text-[14px] text-[var(--color-text-muted)]">设置管理员账户以开始使用</p>
+          <p className="text-[14px] text-[var(--color-text-muted)]">初始化配置</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           {err && <div className="text-[13px] text-[var(--color-danger)]">{err}</div>}
           <div>
-            <label className="block text-[13px] text-[var(--color-text-muted)] mb-1">用户名</label>
+            <label className="block text-[13px] text-[var(--color-text-muted)] mb-1">站点 URL</label>
+            <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)}
+              className={INPUT_CLS} placeholder="https://orca.example.com" required />
+            <p className="text-[11px] text-[var(--color-text-dim)] mt-1">用于 OAuth 回调等场景，不要以 / 结尾</p>
+          </div>
+          <div>
+            <label className="block text-[13px] text-[var(--color-text-muted)] mb-1">管理员用户名</label>
             <input value={username} onChange={(e) => setUsername(e.target.value)}
-              className={INPUT_CLS} placeholder="admin" required autoFocus />
+              className={INPUT_CLS} placeholder="admin" required />
           </div>
           <div>
             <label className="block text-[13px] text-[var(--color-text-muted)] mb-1">密码</label>

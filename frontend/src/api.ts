@@ -66,11 +66,11 @@ export async function getAuthStatus(): Promise<AuthStatus> {
   return res.json()
 }
 
-export async function setupAdmin(username: string, password: string): Promise<{ token: string }> {
+export async function setupAdmin(username: string, password: string, baseUrl?: string): Promise<{ token: string }> {
   const res = await fetch('/api/auth/setup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, base_url: baseUrl }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))

@@ -25,6 +25,7 @@ import (
 	einomcp "github.com/cloudwego/eino-ext/components/tool/mcp"
 
 	"github.com/lulaide/orca/internal/core"
+	"github.com/lulaide/orca/internal/db"
 	"github.com/lulaide/orca/internal/tools"
 )
 
@@ -34,6 +35,7 @@ type Manager struct {
 	registry *tools.Registry
 	db       *gorm.DB
 	conns    map[string]*Connection // name → active connection
+	baseURL  string                 // 外部访问地址，如 "https://orca.llde.tech"
 
 	// OAuth 流程临时状态：state → pending auth info
 	oauthMu       sync.Mutex
@@ -285,7 +287,16 @@ func (m *Manager) tryStreamableHTTP(ctx context.Context, cancel context.CancelFu
 }
 
 func (m *Manager) oauthRedirectURI() string {
-	// TODO: 从配置读取实际的外部 URL
+	if m.baseURL != "" {
+		return m.baseURL + "/api/mcp/oauth/callback"
+	}
+	// fallback：从 settings 表读
+	var cfg struct {
+		BaseURL string `json:"base_url"`
+	}
+	if found, _ := db.LoadSetting(m.db, "site", &cfg); found && cfg.BaseURL != "" {
+		return cfg.BaseURL + "/api/mcp/oauth/callback"
+	}
 	return "http://localhost:9000/api/mcp/oauth/callback"
 }
 

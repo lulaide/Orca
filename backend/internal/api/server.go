@@ -79,6 +79,10 @@ func NewRouter(d *Deps) *gin.Engine {
 		api.GET("/status", d.handleStatus)
 		api.GET("/cluster/metrics", d.handleClusterMetrics)
 
+		// 设置: 站点
+		api.GET("/settings/site", d.handleGetSiteSettings)
+		api.PUT("/settings/site", d.handleUpdateSiteSettings)
+
 		// 设置: OAuth
 		api.GET("/auth/oauth/config", d.handleGetOAuthConfig)
 		api.POST("/auth/oauth/config", d.handleSetOAuthConfig)

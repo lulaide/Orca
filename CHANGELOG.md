@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.0](https://github.com/lulaide/Orca/compare/v0.2.0...v0.3.0) (2026-04-23)
+
+
+### Features
+
+* **auth:** OAuth/OIDC SSO 登录 ([0ae9860](https://github.com/lulaide/Orca/commit/0ae9860e002cb1502b3c91bd00f64d88b6e3be11))
+* **mcp:** localhost 回调模式 — 支持不允许自定义回调域名的 MCP Server ([95b6df8](https://github.com/lulaide/Orca/commit/95b6df86b82741c073998289113a03d4c83b88f8))
+* **mcp:** 自定义请求头 + localhost 回调优化 ([f362d09](https://github.com/lulaide/Orca/commit/f362d097f23d3b96ca95a4db8b01658afe26928e))
+* **notify:** 飞书应用机器人通知（larksuite SDK） ([98f414d](https://github.com/lulaide/Orca/commit/98f414d5302ff115cd7fa832670e8fd91303c8ef))
+* **triggers:** 新增 AlertManager + Grafana + 通用 Webhook 触发器 ([d9a69ea](https://github.com/lulaide/Orca/commit/d9a69ea50e54f7b0d88279b6a0640e57d0a716c4))
+* 站点 URL 配置 — 初始化时设置 + 设置页可修改 ([08459e3](https://github.com/lulaide/Orca/commit/08459e3e61e565899c2e3f407b8a2ef0c63583c7))
+
+
+### Bug Fixes
+
+* **auth:** 修复 SSO 登录后 API 401 — 模板字符串 fetch 未替换为 authFetch ([74a38d1](https://github.com/lulaide/Orca/commit/74a38d121eb82a86c9fbbc6fd3f2e696d968470b))
+* **deploy:** kubernetes-cn 镜像 tag 改为 0.2.0（semver 不带 v 前缀） ([ae3fa7b](https://github.com/lulaide/Orca/commit/ae3fa7b4d57732df49ddf1dc509eb9fec5cf6ddb))
+* **deploy:** 默认镜像改为 ghcr.io/lulaide/orca:latest ([5ee258a](https://github.com/lulaide/Orca/commit/5ee258add378b7538d9deef6f908eaae2ce30aad))
+* **knowledge:** 扫描完成后自动隐藏日志 + 点击目录可直接查看文档 ([7850e8b](https://github.com/lulaide/Orca/commit/7850e8b77cdfc856fc33359d8035c597a37149c1))
+* **mcp:** localhost 回调标记持久化 — 建连时使用一致的 redirect_uri ([ffa79f3](https://github.com/lulaide/Orca/commit/ffa79f3cd93d603c392b827da59a598a281bf2f5))
+* **mcp:** OAuth 动态客户端注册 — 解决 Cloudflare Missing client_id ([603fbf9](https://github.com/lulaide/Orca/commit/603fbf9bfa997f2c64aa8df56bf6063029c8dee2))
+* 知识库扫描超时改为 30 分钟 + 设置页面加最大迭代轮数配置 ([eb7fe5c](https://github.com/lulaide/Orca/commit/eb7fe5c6964087b0fab486dee80ae37a35fffd90))
+* 移除未使用的 getMCPOAuthURL 导入 ([de99821](https://github.com/lulaide/Orca/commit/de99821de0314bf94522f77d040d98df605c5018))
+
 ## [0.2.0](https://github.com/lulaide/Orca/compare/v0.1.0...v0.2.0) (2026-04-21)
 
 

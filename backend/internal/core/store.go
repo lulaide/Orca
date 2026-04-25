@@ -84,8 +84,9 @@ func ForkConversation(db *gorm.DB, sourceID, userID string) (*Conversation, erro
 		return nil, err
 	}
 
-	// 复制消息（新 UUID），跳过 system 消息（Engine.Run 会自己加 system prompt）
-	now := time.Now()
+	// 复制消息（新 UUID）。只跳过 system 消息（Engine.Run 会自己加），
+	// 其余全部保留，包括 tool_calls 和 tool results，保持完整上下文。
+	// 保留原始消息时间，确保 ORDER BY created_at 保持原始顺序。
 	for _, m := range msgs {
 		if m.Role == "system" {
 			continue
@@ -99,7 +100,7 @@ func ForkConversation(db *gorm.DB, sourceID, userID string) (*Conversation, erro
 			ToolCallID:     m.ToolCallID,
 			ToolName:       m.ToolName,
 			Metadata:       m.Metadata,
-			CreatedAt:      now,
+			CreatedAt:      m.CreatedAt,
 		}
 		db.Create(&clone)
 	}

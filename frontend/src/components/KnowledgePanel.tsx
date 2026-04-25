@@ -119,7 +119,7 @@ export function KnowledgePanel() {
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full">
       {/* 顶部工具栏 */}
-      <header className="flex items-center justify-between px-6 h-12 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+      <header className="flex items-center justify-between px-4 md:px-6 h-12 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
         <span className="text-[14px] font-medium text-[var(--color-text)]">
           {selectedPage ? selectedPage.title : '知识库'}
         </span>

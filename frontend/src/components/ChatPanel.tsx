@@ -393,10 +393,16 @@ export function ChatPanel({
         </button>
       )}
       {/* Header */}
-      <header className="flex items-center justify-between px-6 h-12 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
-        <span className="text-[14px] font-medium text-[var(--color-text)]">
-          {conversationId ? '对话' : '新对话'}
-        </span>
+      <header className="flex items-center justify-between px-4 md:px-6 h-12 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+        <div className="flex items-center">
+          <button type="button" onClick={() => { window.history.pushState(null, '', '/c'); window.dispatchEvent(new PopStateEvent('popstate')) }}
+            className="md:hidden mr-2 text-[var(--color-accent)]">
+            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
+          </button>
+          <span className="text-[14px] font-medium text-[var(--color-text)]">
+            {conversationId ? '对话' : '新对话'}
+          </span>
+        </div>
         {msgCount > 0 && (
           <span className="text-[12px] text-[var(--color-text-dim)]">
             {msgCount} 条消息
@@ -425,7 +431,7 @@ export function ChatPanel({
 
       {/* Messages — dot-grid 背景 */}
       <div className="flex-1 overflow-y-auto orca-grid" onMouseUp={handleSelectionMouseUp}>
-        <div className="max-w-3xl mx-auto px-6 py-10">
+        <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 md:py-10">
           {showEmpty && <EmptyState onPick={(p) => void send(p)} />}
           {turns.map((t) =>
             t.kind === 'user' ? (

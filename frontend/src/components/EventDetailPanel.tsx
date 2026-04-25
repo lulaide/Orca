@@ -146,7 +146,7 @@ export function EventDetailPanel({ id }: Props) {
               <span className="mt-2">
                 <SeverityDot severity={event.severity} />
               </span>
-              <h1 className="font-semibold text-[22px] leading-tight text-[var(--color-text)]">
+              <h1 className="font-semibold text-[18px] md:text-[22px] leading-tight text-[var(--color-text)]">
                 {event.title}
               </h1>
             </div>
@@ -262,9 +262,13 @@ export function EventDetailPanel({ id }: Props) {
 
 function TopBar({ id }: { id: string }) {
   return (
-    <header className="flex items-center px-6 h-12 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+    <header className="flex items-center px-4 md:px-6 h-12 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+      <button type="button" onClick={() => navigate('/events')}
+        className="md:hidden mr-2 text-[var(--color-accent)]">
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
+      </button>
       <span className="text-[14px] font-medium text-[var(--color-text)]">事件详情</span>
-      <span className="text-[12px] text-[var(--color-text-dim)] ml-2">{id.slice(0, 8)}</span>
+      <span className="text-[12px] text-[var(--color-text-dim)] ml-2 hidden md:inline">{id.slice(0, 8)}</span>
     </header>
   )
 }

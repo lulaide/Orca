@@ -33,7 +33,7 @@ interface Props {
 
 export function SecondaryPanel(props: Props) {
   return (
-    <aside className="w-64 shrink-0 flex flex-col h-full border-r border-[var(--color-border)] bg-[var(--color-surface)]">
+    <aside className="w-full md:w-64 shrink-0 flex flex-col h-full border-r border-[var(--color-border)] bg-[var(--color-surface)] pb-14 md:pb-0 overflow-hidden">
       {props.module === 'chat' && <ChatList {...props} />}
       {props.module === 'events' && <EventsList {...props} />}
       {props.module === 'investigations' && <InvestigationsList {...props} />}
@@ -105,7 +105,7 @@ function ChatList({ refreshToken, activeConversationId, onSelectConversation }: 
               onMouseEnter={() => setHoveredId(c.id)}
               onMouseLeave={() => setHoveredId(null)}
               onClick={() => onSelectConversation(c.id)}
-              className={`group relative flex items-center gap-2 pl-3 pr-2 py-[7px] rounded-md cursor-pointer
+              className={`group relative flex items-center gap-2 pl-3 pr-2 min-w-0 py-[7px] rounded-md cursor-pointer
                 text-[13px] transition-colors
                 ${active
                   ? 'bg-[var(--color-surface-2)] text-[var(--color-text)]'
@@ -159,7 +159,7 @@ function EventsList({ refreshToken, activeEventId }: Props) {
               key={ev.id}
               type="button"
               onClick={() => navigate(`/events/${ev.id}`)}
-              className={`w-full text-left relative flex items-center gap-2 pl-3 pr-2 py-[7px] rounded-md
+              className={`w-full text-left relative flex items-center gap-2 pl-3 pr-2 min-w-0 py-[7px] rounded-md
                 text-[12.5px] transition-colors
                 ${active
                   ? 'bg-[var(--color-surface-2)] text-[var(--color-text)]'
@@ -168,6 +168,9 @@ function EventsList({ refreshToken, activeEventId }: Props) {
               {active && <ActiveBar />}
               <SeverityDot severity={ev.severity} />
               <span className="flex-1 truncate">{ev.title}</span>
+              <span className="shrink-0 text-[11px] text-[var(--color-text-dim)]">
+                {formatShort(ev.created_at)}
+              </span>
               {!processed && (
                 <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-warn)] shrink-0" />
               )}
@@ -216,7 +219,7 @@ function InvestigationsList({ refreshToken, activeInvestigationId, investigation
               key={inv.id}
               type="button"
               onClick={() => navigate(`/i/${inv.id}`)}
-              className={`w-full text-left relative flex items-center gap-2 pl-3 pr-2 py-[7px] rounded-md
+              className={`w-full text-left relative flex items-center gap-2 pl-3 pr-2 min-w-0 py-[7px] rounded-md
                 text-[12.5px] transition-colors
                 ${active
                   ? 'bg-[var(--color-surface-2)] text-[var(--color-text)]'

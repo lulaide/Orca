@@ -23,7 +23,7 @@ export function SettingsPanel({ refreshToken }: Props) {
   useEffect(() => { reloadStatus() }, [refreshToken])
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto pb-14 md:pb-0">
       <div className="max-w-3xl mx-auto px-8 py-8 space-y-10">
         <h1 className="text-[22px] font-semibold text-[var(--color-text)]">设置</h1>
         <SiteSection />

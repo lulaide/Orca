@@ -208,8 +208,14 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
       />
 
       {/* Header */}
-      <header className="flex items-center justify-between px-6 h-11 border-b border-[var(--color-border)] bg-[var(--color-bg)] font-mono text-[11px]">
-        <span className="text-[14px] font-medium text-[var(--color-text)]">调查详情</span>
+      <header className="flex items-center justify-between px-4 md:px-6 h-12 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+        <div className="flex items-center">
+          <button type="button" onClick={() => navigate('/i')}
+            className="md:hidden mr-2 text-[var(--color-accent)]">
+            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
+          </button>
+          <span className="text-[14px] font-medium text-[var(--color-text)]">调查详情</span>
+        </div>
         <div className="flex items-center gap-3">
           <span className="text-[var(--color-text-dim)] tabular-nums">
             {entries.length} 条记录
@@ -270,13 +276,13 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
                     if (e.key === 'Enter') saveTitle()
                     if (e.key === 'Escape') setEditingTitle(false)
                   }}
-                  className="w-full font-semibold text-[24px] leading-tight text-[var(--color-text)]
+                  className="w-full font-semibold text-[18px] md:text-[24px] leading-tight text-[var(--color-text)]
                     bg-transparent border-b-2 border-[var(--color-accent)]
                     focus:outline-none pb-1"
                 />
               ) : (
                 <div className="group flex items-start gap-2">
-                  <h1 className={`font-semibold text-[24px] leading-tight text-[var(--color-text)]
+                  <h1 className={`font-semibold text-[18px] md:text-[24px] leading-tight text-[var(--color-text)]
                     ${archived ? 'line-through decoration-[var(--color-text-dim)]' : ''}`}>
                     {inv.title}
                   </h1>
@@ -299,7 +305,7 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
           </div>
 
           {/* Meta */}
-          <div className="flex items-center gap-3 mb-5 flex-wrap">
+          <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-5 overflow-x-auto md:flex-wrap">
             {archived ? (
               <StatusBadge status={inv.status} />
             ) : (

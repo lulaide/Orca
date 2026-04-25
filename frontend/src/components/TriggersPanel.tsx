@@ -19,7 +19,7 @@ export function TriggersPanel() {
   useEffect(() => { reload() }, [])
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto pb-14 md:pb-0">
       <div className="max-w-3xl mx-auto px-8 py-8">
         <div className="mb-6">
           <h1 className="text-[22px] font-semibold text-[var(--color-text)]">触发器</h1>

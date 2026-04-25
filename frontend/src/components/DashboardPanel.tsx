@@ -31,11 +31,11 @@ export function DashboardPanel() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-5xl mx-auto px-8 py-8">
+      <div className="max-w-5xl mx-auto px-4 py-6 md:px-8 md:py-8 pb-20 md:pb-8">
         <h1 className="text-[22px] font-semibold text-[var(--color-text)] mb-6">Dashboard</h1>
 
         {/* 顶部卡片行 */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           {/* 系统状态 */}
           <Card title="系统状态">
             <div className="space-y-3">
@@ -74,7 +74,7 @@ export function DashboardPanel() {
         </div>
 
         {/* 下半部分：事件 + 调查（带边框卡片） */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card title="最近事件" count={events.length}
             action={events.length > 0 ? { label: '查看全部', onClick: () => navigate('/events') } : undefined}>
             {events.length === 0 ? (

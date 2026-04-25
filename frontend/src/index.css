@@ -236,9 +236,14 @@ input:focus-visible {
   border-bottom-left-radius: 8px;
   background: var(--color-surface-3);
 }
+.orca-prose .table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .orca-prose table {
   border-collapse: collapse;
   margin: 0.8em 0;
+  min-width: 400px;
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
   width: 100%;
@@ -350,6 +355,11 @@ input:focus-visible {
   transition: background-color 150ms ease;
 }
 .orca-btn-link:hover { background: var(--color-accent-soft); }
+
+/* Mobile safe area */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
 
 /* Utility shorthands */
 .font-serif-display {

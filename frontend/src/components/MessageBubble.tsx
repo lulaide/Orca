@@ -61,6 +61,9 @@ const markdownComponents: Components = {
   pre({ children, ...props }) {
     return <pre {...props}>{children}</pre>
   },
+  table({ children, ...props }) {
+    return <div className="overflow-x-auto -mx-2 px-2"><table {...props}>{children}</table></div>
+  },
   code({ className, children, ...props }) {
     const match = /language-(\w+)/.exec(className || '')
     // 块级代码（在 pre 内）

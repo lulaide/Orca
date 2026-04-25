@@ -268,6 +268,15 @@ export async function getConversationMessages(id: string): Promise<ChatMessage[]
   return res.json()
 }
 
+export async function forkConversation(id: string): Promise<Conversation> {
+  const res = await authFetch(`/api/conversations/${id}/fork`, { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || `fork: ${res.status}`)
+  }
+  return res.json()
+}
+
 export async function deleteConversation(id: string): Promise<void> {
   const res = await authFetch(`/api/conversations/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`delete: ${res.status}`)

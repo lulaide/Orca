@@ -109,6 +109,7 @@ func NewRouter(d *Deps) *gin.Engine {
 		api.GET("/conversations", d.handleListConversations)
 		api.GET("/conversations/:id/messages", d.handleGetConversationMessages)
 		api.DELETE("/conversations/:id", d.handleDeleteConversation)
+		api.POST("/conversations/:id/fork", d.handleForkConversation)
 		api.GET("/conversations/:id/investigations", d.handleListConversationInvestigations)
 		api.DELETE("/conversations/:id/investigations/:inv_id", d.handleUnlinkConversationInvestigation)
 

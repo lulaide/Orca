@@ -66,7 +66,7 @@ func (r *EventRouter) runAgent(ev *core.Event) {
 
 	// 先创建一个 Conversation 容器并绑到 Event 上。失败不致命——继续跑，只是前端看不到消息流。
 	var convID string
-	if conv, err := core.CreateConversation(r.db, "事件："+ev.Title); err != nil {
+	if conv, err := core.CreateConversation(r.db, "事件："+ev.Title, "event", ""); err != nil {
 		log.Printf("EventRouter: create conversation failed: %v", err)
 	} else {
 		convID = conv.ID

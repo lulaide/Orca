@@ -12,6 +12,8 @@ import (
 type Conversation struct {
 	ID        string    `gorm:"primaryKey" json:"id"`
 	Title     string    `json:"title"`
+	Type      string    `gorm:"default:chat" json:"type"`    // "chat" | "event"
+	UserID    string    `gorm:"index" json:"user_id"`        // chat 类型的创建者，event 类型为空
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

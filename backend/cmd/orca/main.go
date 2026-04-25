@@ -49,6 +49,9 @@ func main() {
 	); err != nil {
 		log.Fatalf("Migration: %v", err)
 	}
+	// 已有对话如果 type 为空，标记为 chat
+	gormDB.Model(&core.Conversation{}).Where("type = '' OR type IS NULL").Update("type", "chat")
+
 	// 清理旧列:Conversation.InvestigationIDs 已被独立 join 表 conversation_investigations 取代
 	if gormDB.Migrator().HasColumn(&core.Conversation{}, "investigation_ids") {
 		if err := gormDB.Migrator().DropColumn(&core.Conversation{}, "investigation_ids"); err != nil {

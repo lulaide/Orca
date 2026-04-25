@@ -12,10 +12,17 @@ import (
 )
 
 // CreateConversation 新建一个对话，title 可空（稍后由 LLM 总结填充）。
-func CreateConversation(db *gorm.DB, title string) (*Conversation, error) {
+// convType: "chat"（用户对话）| "event"（事件 Agent）
+// userID: chat 类型填当前用户 ID，event 类型传空字符串。
+func CreateConversation(db *gorm.DB, title, convType, userID string) (*Conversation, error) {
+	if convType == "" {
+		convType = "chat"
+	}
 	c := &Conversation{
-		ID:    uuid.NewString(),
-		Title: title,
+		ID:     uuid.NewString(),
+		Title:  title,
+		Type:   convType,
+		UserID: userID,
 	}
 	if err := db.Create(c).Error; err != nil {
 		return nil, err
@@ -43,14 +50,61 @@ func ListMessages(db *gorm.DB, convID string) ([]Message, error) {
 	return msgs, nil
 }
 
-// ListConversations 返回所有对话，按 updated_at 降序（最新活动的在前）。
-// 侧边栏列表用，不返回消息内容。
-func ListConversations(db *gorm.DB) ([]Conversation, error) {
+// ListConversations 返回指定用户的 chat 类型对话，按 updated_at 降序。
+func ListConversations(db *gorm.DB, userID string) ([]Conversation, error) {
 	var convs []Conversation
-	if err := db.Order("updated_at DESC").Find(&convs).Error; err != nil {
+	q := db.Where("type = ? AND user_id = ?", "chat", userID).Order("updated_at DESC")
+	if err := q.Find(&convs).Error; err != nil {
 		return nil, err
 	}
 	return convs, nil
+}
+
+// ForkConversation 复制源对话的所有消息到一个新的 chat 对话。
+func ForkConversation(db *gorm.DB, sourceID, userID string) (*Conversation, error) {
+	// 读源对话消息
+	msgs, err := ListMessages(db, sourceID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 读源对话标题
+	src, err := GetConversation(db, sourceID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 创建新对话
+	title := src.Title
+	if title != "" {
+		title = title + "（续）"
+	}
+	conv, err := CreateConversation(db, title, "chat", userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 复制消息（新 UUID），跳过 system 消息（Engine.Run 会自己加 system prompt）
+	now := time.Now()
+	for _, m := range msgs {
+		if m.Role == "system" {
+			continue
+		}
+		clone := Message{
+			ID:             uuid.NewString(),
+			ConversationID: conv.ID,
+			Role:           m.Role,
+			Content:        m.Content,
+			ToolCalls:      m.ToolCalls,
+			ToolCallID:     m.ToolCallID,
+			ToolName:       m.ToolName,
+			Metadata:       m.Metadata,
+			CreatedAt:      now,
+		}
+		db.Create(&clone)
+	}
+
+	return conv, nil
 }
 
 // SetConversationTitle 设置对话标题。title 会被截断到 80 字符内，避免过长。

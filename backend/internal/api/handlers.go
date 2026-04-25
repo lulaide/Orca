@@ -12,6 +12,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/gin-gonic/gin"
 
+	"github.com/lulaide/orca/internal/auth"
 	"github.com/lulaide/orca/internal/config"
 	"github.com/lulaide/orca/internal/core"
 	"github.com/lulaide/orca/internal/db"
@@ -130,7 +131,8 @@ func (d *Deps) handleDisconnectKube(c *gin.Context) {
 // ---- /api/conversations ----
 
 func (d *Deps) handleListConversations(c *gin.Context) {
-	convs, err := core.ListConversations(d.DB)
+	userID := auth.GetUserID(c)
+	convs, err := core.ListConversations(d.DB, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -150,6 +152,16 @@ func (d *Deps) handleGetConversationMessages(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, msgs)
+}
+
+func (d *Deps) handleForkConversation(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	conv, err := core.ForkConversation(d.DB, c.Param("id"), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, conv)
 }
 
 func (d *Deps) handleDeleteConversation(c *gin.Context) {
@@ -269,7 +281,7 @@ func (d *Deps) handleChat(c *gin.Context) {
 	// 1. 找到或新建 Conversation
 	var conv *core.Conversation
 	if req.ConversationID == "" {
-		cv, err := core.CreateConversation(d.DB, "")
+		cv, err := core.CreateConversation(d.DB, "", "chat", auth.GetUserID(c))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "create conversation: " + err.Error()})
 			return

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   getEvent,
   getConversationMessages,
+  forkConversation,
   type ChatMessage,
   type EventDetail,
 } from '../api'
@@ -206,10 +207,23 @@ export function EventDetailPanel({ id }: Props) {
             )}
           </div>
 
-          {/* Agent 处理时间线 —— 复用 ChatPanel 的轮次渲染 */}
+          {/* Agent 处理时间线 */}
           <div>
-            <div className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] mb-3">
-              agent timeline · 处理过程
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[13px] font-medium text-[var(--color-text-muted)]">
+                处理过程
+              </span>
+              {event.conversation_id && (
+                <button type="button" onClick={async () => {
+                  try {
+                    const conv = await forkConversation(event.conversation_id!)
+                    navigate(`/c/${conv.id}`)
+                  } catch { /* */ }
+                }}
+                  className="text-[12px] text-[var(--color-accent)] hover:underline">
+                  继续对话 →
+                </button>
+              )}
             </div>
             {!event.conversation_id && (
               <div className="text-[12.5px] text-[var(--color-text-dim)] italic">

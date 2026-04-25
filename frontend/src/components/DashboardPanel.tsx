@@ -153,7 +153,7 @@ function Card({ title, count, action, children }: {
         </div>
         {action && (
           <button type="button" onClick={action.onClick}
-            className="text-[12px] text-[var(--color-accent)] hover:underline">
+            className="orca-btn-link text-[13px]">
             {action.label} →
           </button>
         )}

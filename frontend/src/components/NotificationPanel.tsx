@@ -74,12 +74,12 @@ export function NotificationPanel() {
                 <div className="ml-auto flex items-center gap-2">
                   {cfg?.enabled && (
                     <button type="button" onClick={handleTest} disabled={busy}
-                      className="text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-50 transition-colors">
+                      className="orca-btn-link text-[12px] text-[var(--color-text-muted)] disabled:opacity-50">
                       测试发送
                     </button>
                   )}
                   <button type="button" onClick={startEdit}
-                    className="text-[12px] text-[var(--color-accent)] hover:underline">
+                    className="orca-btn-link text-[12px]">
                     {cfg?.enabled ? '修改' : '配置'}
                   </button>
                 </div>

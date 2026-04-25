@@ -140,7 +140,7 @@ export function HomePanel({ onSubmit, focusSignal }: Props) {
       <div className="w-full max-w-4xl mx-auto px-8 pt-[8vh] pb-16 flex flex-col gap-10">
         {/* Greeting */}
         <div className="orca-fade-in">
-          <div className="text-[11.5px] uppercase tracking-[0.25em] text-[var(--color-text-dim)] font-mono mb-3">
+          <div className="text-[13px] text-[var(--color-text-dim)] mb-3">
             {todayStr()}
           </div>
           <h1 className="font-semibold text-[48px] leading-[1.02] text-[var(--color-text)] mb-2">
@@ -222,7 +222,7 @@ export function HomePanel({ onSubmit, focusSignal }: Props) {
                     hover:bg-[var(--color-accent-hover)]
                     disabled:bg-[var(--color-surface-3)] disabled:text-[var(--color-text-dim)]
                     disabled:cursor-not-allowed transition-colors
-                    font-mono text-[11px] uppercase tracking-[0.15em]"
+                    text-[13px]"
                   aria-label="发送"
                 >
                   send

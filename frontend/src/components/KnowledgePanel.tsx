@@ -132,10 +132,7 @@ export function KnowledgePanel() {
           )}
           <button type="button"
             onClick={scanning ? () => scanAbortRef.current?.abort() : handleScan}
-            className={`px-2.5 py-1 rounded border transition-colors
-              ${scanning
-                ? 'border-[var(--color-danger)]/40 text-[var(--color-danger)]'
-                : 'border-[var(--color-border-strong)] hover:border-[var(--color-accent)] text-[var(--color-text)]'}`}
+            className={scanning ? 'orca-btn-danger' : 'orca-btn-secondary'}
           >
             {scanning ? '停止' : '扫描集群'}
           </button>

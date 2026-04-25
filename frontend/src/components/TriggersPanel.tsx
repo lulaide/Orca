@@ -136,9 +136,9 @@ function ActionBtn({ onClick, disabled, children }: {
 }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled}
-      className="text-[11px] font-mono px-2 py-1 rounded border
+      className="text-[13px] px-3 py-1.5 rounded-lg border
         border-[var(--color-border-strong)] text-[var(--color-text-muted)]
-        hover:bg-[var(--color-surface)] disabled:opacity-50 transition-colors">
+        hover:bg-[var(--color-surface-2)] disabled:opacity-50 transition-colors">
       {children}
     </button>
   )

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   getEvent,
   getConversationMessages,
@@ -12,7 +14,7 @@ import { SeverityDot, StatusBadge } from './investigationUI'
 import { formatRelativeTime } from '../timeFormat'
 
 // EventDetailPanel 展示一次 Event 的完整处理轨迹：
-//   1. 顶部：Event 元信息 + pending/done 徽标 + agent_summary
+//   1. 顶部：Event 元信息 + 待处理/done 徽标 + agent_summary
 //   2. 中段：Agent 在这次事件里创建 / 关联的 Investigation chip
 //   3. 主体：复用 ChatPanel 的消息渲染，把 Agent Loop 里的
 //      user / assistant / tool 调用按轮次展开。这样用户看到的
@@ -126,19 +128,17 @@ export function EventDetailPanel({ id }: Props) {
         <div className="max-w-3xl mx-auto px-6 py-8">
           {/* Event 元信息 */}
           <div className="mb-6">
-            <div className="flex items-center gap-2 mb-2 text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
-              <span>event</span>
+            <div className="flex items-center gap-2 mb-2 text-[12px] text-[var(--color-text-dim)]">
+              <span>来源：{event.source}</span>
               <span>·</span>
-              <span>{event.source}</span>
-              <span>·</span>
-              <span className="tabular-nums">{formatRelativeTime(event.created_at)}</span>
+              <span>{formatRelativeTime(event.created_at)}</span>
               {!processed ? (
-                <span className="ml-2 px-1.5 py-0.5 border rounded text-[var(--color-warn)] border-[var(--color-warn)]/40">
-                  pending
+                <span className="ml-2 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-warn)]/10 text-[var(--color-warn)] border border-[var(--color-warn)]/20">
+                  待处理
                 </span>
               ) : (
-                <span className="ml-2 px-1.5 py-0.5 border rounded text-[var(--color-ok)] border-[var(--color-ok)]/40">
-                  done
+                <span className="ml-2 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-ok)]/10 text-[var(--color-ok)] border border-[var(--color-ok)]/20">
+                  已处理
                 </span>
               )}
             </div>
@@ -165,11 +165,11 @@ export function EventDetailPanel({ id }: Props) {
             )}
             {event.agent_summary && (
               <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)]/60 px-4 py-3">
-                <div className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] mb-1">
-                  agent summary
+                <div className="text-[13px] font-medium text-[var(--color-text-muted)] mb-1.5">
+                  处理摘要
                 </div>
-                <div className="text-[13.5px] text-[var(--color-text)] leading-relaxed whitespace-pre-wrap">
-                  {event.agent_summary}
+                <div className="orca-prose text-[13.5px]">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{event.agent_summary}</ReactMarkdown>
                 </div>
               </div>
             )}
@@ -177,8 +177,8 @@ export function EventDetailPanel({ id }: Props) {
 
           {/* 关联 Investigation chip 条 */}
           <div className="mb-8">
-            <div className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] mb-2">
-              linked investigations · 本次事件产生的调查
+            <div className="text-[15px] font-semibold text-[var(--color-text)] mb-2">
+              关联调查
             </div>
             {investigations.length === 0 ? (
               <div className="text-[12.5px] text-[var(--color-text-dim)] italic">
@@ -209,21 +209,10 @@ export function EventDetailPanel({ id }: Props) {
 
           {/* Agent 处理时间线 */}
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[13px] font-medium text-[var(--color-text-muted)]">
+            <div className="mb-3">
+              <span className="text-[15px] font-semibold text-[var(--color-text)]">
                 处理过程
               </span>
-              {event.conversation_id && (
-                <button type="button" onClick={async () => {
-                  try {
-                    const conv = await forkConversation(event.conversation_id!)
-                    navigate(`/c/${conv.id}`)
-                  } catch { /* */ }
-                }}
-                  className="text-[12px] text-[var(--color-accent)] hover:underline">
-                  继续对话 →
-                </button>
-              )}
             </div>
             {!event.conversation_id && (
               <div className="text-[12.5px] text-[var(--color-text-dim)] italic">
@@ -251,6 +240,17 @@ export function EventDetailPanel({ id }: Props) {
                     />
                   ),
                 )}
+                <div className="mt-6 flex justify-center">
+                  <button type="button" onClick={async () => {
+                    try {
+                      const conv = await forkConversation(event.conversation_id!)
+                      navigate(`/c/${conv.id}`)
+                    } catch { /* */ }
+                  }}
+                    className="orca-btn-secondary">
+                    继续对话 →
+                  </button>
+                </div>
               </div>
             )}
           </div>

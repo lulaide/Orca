@@ -72,7 +72,7 @@ function SiteSection() {
           {saved && <span className="text-[12px] text-[var(--color-ok)]">已保存</span>}
           {!editing && (
             <button type="button" onClick={() => setEditing(true)}
-              className="ml-auto text-[11px] font-mono text-[var(--color-accent)] hover:underline">修改</button>
+              className="ml-auto orca-btn-link text-[12px]">修改</button>
           )}
         </div>
         {editing && (
@@ -143,12 +143,12 @@ function LLMSection({ status, onSaved }: { status: StatusResponse | null; onSave
                     catch (e) { setTestResult({ ok: false, error: e instanceof Error ? e.message : '失败' }) }
                     finally { setTesting(false) }
                   }}
-                  className="text-[11px] font-mono text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-50">
+                  className="orca-btn-link text-[12px] text-[var(--color-text-muted)] disabled:opacity-50">
                   {testing ? '测试中…' : '测试连接'}
                 </button>
               )}
               <button type="button" onClick={startEdit}
-                className="text-[11px] font-mono text-[var(--color-accent)] hover:underline">
+                className="orca-btn-link text-[12px]">
                 {llm?.configured ? '修改' : '配置'}
               </button>
             </div>
@@ -320,7 +320,7 @@ function OAuthSection() {
           </span>
           {!editing && (
             <button type="button" onClick={startEdit}
-              className="ml-auto text-[11px] font-mono text-[var(--color-accent)] hover:underline">
+              className="ml-auto orca-btn-link text-[12px]">
               {cfg?.enabled ? '修改' : '配置'}
             </button>
           )}

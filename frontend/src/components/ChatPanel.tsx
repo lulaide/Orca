@@ -388,7 +388,7 @@ export function ChatPanel({
             hover:opacity-90 transition-opacity orca-fade-in"
           style={{ top: quoteSel.top, left: quoteSel.left, transform: 'translateY(-100%)' }}
         >
-          Reply
+          追问
           <span className="text-[11.5px] opacity-70">↵</span>
         </button>
       )}
@@ -408,7 +408,7 @@ export function ChatPanel({
       {conversationId && convInvestigations.length > 0 && (
         <div className="border-b border-[var(--color-border)] bg-[var(--color-bg)] px-6 py-2">
           <div className="max-w-3xl mx-auto flex items-center gap-2 flex-wrap">
-            <span className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] mr-1">
+            <span className="text-[12px] text-[var(--color-text-dim)] mr-1">
               引用
             </span>
             {convInvestigations.map((inv) => (
@@ -517,7 +517,7 @@ export function ChatPanel({
                     <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                   </svg>
                 </button>
-                <span className="font-mono text-[var(--color-text-dim)] select-none pt-[7px] pl-0.5">
+                <span className="font-mono text-[var(--color-text-dim)] select-none self-center">
                   &gt;
                 </span>
                 <textarea
@@ -540,7 +540,7 @@ export function ChatPanel({
                     hover:bg-[var(--color-accent-hover)]
                     disabled:bg-[var(--color-surface-3)] disabled:text-[var(--color-text-dim)]
                     disabled:cursor-not-allowed transition-colors
-                    font-mono text-[11px] uppercase tracking-[0.15em]"
+                    text-[13px]"
                   aria-label={loading ? '发送中' : '发送'}
                 >
                   {loading ? (
@@ -565,13 +565,13 @@ export function ChatPanel({
                       />
                     </svg>
                   ) : (
-                    'send'
+                    '发送'
                   )}
                 </button>
               </div>
             </div>
           </div>
-          <div className="mt-2 px-1 text-[12px] text-[var(--color-text-dim)] font-mono">
+          <div className="mt-2 px-1 text-[12px] text-[var(--color-text-dim)]">
             Orca 会调用只读工具进行排查·所有操作可在时间线中审计
           </div>
         </form>
@@ -635,8 +635,8 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
   return (
     <div className="py-10 orca-fade-in">
       <div className="mb-8">
-        <div className="text-[11.5px] uppercase tracking-[0.25em] text-[var(--color-text-dim)] font-mono mb-3">
-          ready · 就绪
+        <div className="text-[13px] text-[var(--color-text-dim)] mb-3">
+          就绪
         </div>
         <h1 className="font-semibold text-[44px] leading-[1.05] text-[var(--color-text)] mb-3">
           查点什么？
@@ -657,7 +657,7 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
               hover:bg-[var(--color-surface)]
               transition-colors"
           >
-            <span className="shrink-0 w-14 text-[11.5px] uppercase tracking-[0.18em] font-mono text-[var(--color-accent)]">
+            <span className="shrink-0 w-14 text-[13px] font-medium text-[var(--color-accent)]">
               {s.tag}
             </span>
             <span className="flex-1 min-w-0">
@@ -666,8 +666,8 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
               </span>
               <span className="block text-[12.5px] text-[var(--color-text-dim)]">{s.sub}</span>
             </span>
-            <span className="shrink-0 text-[var(--color-text-dim)] opacity-0 group-hover:opacity-100 transition-opacity font-mono text-sm">
-              ↵
+            <span className="shrink-0 text-[var(--color-text-dim)] opacity-0 group-hover:opacity-100 transition-opacity text-[14px]">
+              →
             </span>
           </button>
         ))}
@@ -687,7 +687,7 @@ function ThinkingIndicator() {
         <span className="w-1 h-1 rounded-full bg-[var(--color-text-dim)] orca-pulse-dot" style={{ animationDelay: '0ms' }} />
         <span className="w-1 h-1 rounded-full bg-[var(--color-text-dim)] orca-pulse-dot" style={{ animationDelay: '180ms' }} />
         <span className="w-1 h-1 rounded-full bg-[var(--color-text-dim)] orca-pulse-dot" style={{ animationDelay: '360ms' }} />
-        <span className="ml-2 text-[11px] text-[var(--color-text-dim)] font-mono">思考中</span>
+        <span className="ml-2 text-[12px] text-[var(--color-text-dim)]">思考中</span>
       </div>
     </div>
   )

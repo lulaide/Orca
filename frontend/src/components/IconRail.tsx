@@ -36,7 +36,7 @@ export function IconRail({ active, onSelect, username }: Props) {
 
   return (
     <aside className="w-[180px] shrink-0 flex flex-col h-full
-      bg-[var(--color-surface)] border-r border-[var(--color-border)]">
+      bg-[var(--color-sidebar-bg)] border-r border-[var(--color-sidebar-border)]">
       {/* Logo */}
       <div className="px-4 pt-5 pb-4">
         <button
@@ -79,7 +79,7 @@ export function IconRail({ active, onSelect, username }: Props) {
         )}
 
         <div className="flex items-center justify-between px-2.5 py-1.5">
-          <div className="flex items-center gap-2 text-[11px] font-mono text-[var(--color-text-dim)]">
+          <div className="flex items-center gap-2 text-[12px] text-[var(--color-text-dim)]">
             <span className={`w-1.5 h-1.5 rounded-full ${llmOk ? 'bg-[var(--color-ok)]' : 'bg-[var(--color-warn)]'}`} />
             <span>LLM</span>
             <span className={`w-1.5 h-1.5 rounded-full ml-1 ${kubeOk ? 'bg-[var(--color-ok)]' : 'bg-[var(--color-warn)]'}`} />
@@ -123,11 +123,11 @@ function NavItem({ icon, label, module, active, onSelect }: {
     <button
       type="button"
       onClick={() => onSelect(module)}
-      className={`w-full flex items-center gap-2.5 px-2.5 py-[7px] rounded-md
-        text-[13px] transition-all relative
+      className={`w-full flex items-center gap-2.5 px-2.5 py-[7px] rounded-lg
+        text-[14px] transition-colors relative
         ${isActive
-          ? 'bg-[var(--color-surface-2)] text-[var(--color-text)] font-medium shadow-sm'
-          : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)] hover:shadow-sm'}`}
+          ? 'bg-[var(--color-surface-2)] text-[var(--color-text)] font-semibold'
+          : 'text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]'}`}
     >
       {isActive && (
         <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[var(--color-accent)] rounded-r" />

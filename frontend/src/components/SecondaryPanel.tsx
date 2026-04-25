@@ -12,7 +12,7 @@ import {
   type InvestigationView,
 } from '../api'
 import { navigate } from '../navigate'
-import { SeverityDot } from './investigationUI'
+import { SeverityDot, StatusBadge } from './investigationUI'
 import type { Module } from './IconRail'
 
 interface Props {
@@ -108,7 +108,7 @@ function ChatList({ refreshToken, activeConversationId, onSelectConversation }: 
               className={`group relative flex items-center gap-2 pl-3 pr-2 py-[7px] rounded-md cursor-pointer
                 text-[13px] transition-colors
                 ${active
-                  ? 'bg-[var(--color-surface-2)] text-[var(--color-text)] font-medium'
+                  ? 'bg-[var(--color-surface-2)] text-[var(--color-text)]'
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]'}`}
             >
               {active && <ActiveBar />}
@@ -162,7 +162,7 @@ function EventsList({ refreshToken, activeEventId }: Props) {
               className={`w-full text-left relative flex items-center gap-2 pl-3 pr-2 py-[7px] rounded-md
                 text-[12.5px] transition-colors
                 ${active
-                  ? 'bg-[var(--color-surface-2)] text-[var(--color-text)] font-medium'
+                  ? 'bg-[var(--color-surface-2)] text-[var(--color-text)]'
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]'}`}
             >
               {active && <ActiveBar />}
@@ -198,10 +198,10 @@ function InvestigationsList({ refreshToken, activeInvestigationId, investigation
             key={v}
             type="button"
             onClick={() => navigate(`/i?view=${v}`)}
-            className={`text-[10px] font-mono uppercase tracking-[0.12em] px-1.5 py-0.5 rounded transition-colors
+            className={`text-[13px] font-medium px-2.5 py-1 rounded-lg transition-colors
               ${investigationView === v
-                ? 'text-[var(--color-text)] bg-[var(--color-bg)]'
-                : 'text-[var(--color-text-dim)] hover:text-[var(--color-text-muted)]'}`}
+                ? 'text-[var(--color-text)] bg-[var(--color-surface-2)]'
+                : 'text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]'}`}
           >
             {v === 'active' ? '进行中' : v === 'resolved' ? '已解决' : '全部'}
           </button>
@@ -219,13 +219,13 @@ function InvestigationsList({ refreshToken, activeInvestigationId, investigation
               className={`w-full text-left relative flex items-center gap-2 pl-3 pr-2 py-[7px] rounded-md
                 text-[12.5px] transition-colors
                 ${active
-                  ? 'bg-[var(--color-surface-2)] text-[var(--color-text)] font-medium'
+                  ? 'bg-[var(--color-surface-2)] text-[var(--color-text)]'
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]'}`}
             >
               {active && <ActiveBar />}
               <SeverityDot severity={inv.severity} />
               <span className="flex-1 truncate">{inv.title}</span>
-              <span className="text-[10px] font-mono text-[var(--color-text-dim)]">{inv.status}</span>
+              <StatusBadge status={inv.status} />
             </button>
           )
         })}
@@ -292,7 +292,7 @@ function KnowledgeNavNode({ node, depth, selected, onSelect }: {
         type="button"
         onClick={() => { onSelect(node.page.slug); if (has && active) setCollapsed(!collapsed) }}
         className={`w-full flex items-center gap-1 px-2 py-1 rounded text-left text-[12px] transition-colors
-          ${active ? 'bg-[var(--color-surface-2)] text-[var(--color-text)] font-medium' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]'}`}
+          ${active ? 'bg-[var(--color-surface-2)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]'}`}
         style={{ paddingLeft: `${6 + depth * 12}px` }}
       >
         {has && <span className="text-[9px] w-3 shrink-0 text-center" onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed) }}>{collapsed ? '▸' : '▾'}</span>}
@@ -311,12 +311,12 @@ function KnowledgeNavNode({ node, depth, selected, onSelect }: {
 function PanelHeader({ title, action }: { title: string; action?: { label: string; onClick: () => void } }) {
   return (
     <div className="flex items-center justify-between px-3 py-2.5 border-b border-[var(--color-border)]">
-      <span className="text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
+      <span className="text-[13px] font-semibold text-[var(--color-text)]">
         {title}
       </span>
       {action && (
         <button type="button" onClick={action.onClick}
-          className="text-[11px] font-mono text-[var(--color-accent)] hover:underline">
+          className="orca-btn-link text-[12px]">
           {action.label}
         </button>
       )}

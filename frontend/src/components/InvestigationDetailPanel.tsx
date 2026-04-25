@@ -16,7 +16,7 @@ import {
 import { navigate } from '../navigate'
 import { ConfirmDialog } from './ConfirmDialog'
 import { InvestigationChatDrawer } from './InvestigationChatDrawer'
-import { SeverityDot, StatusBadge } from './investigationUI'
+import { SeverityDot, SeverityBadge, StatusBadge } from './investigationUI'
 import { formatRelativeTime } from '../timeFormat'
 
 const DRAWER_LS_KEY = 'orca.inv.drawer.open'
@@ -133,28 +133,6 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
       setBusy(false)
     }
   }
-  const cycleStatus = async () => {
-    if (archived) return
-    const order: InvestigationStatus[] = ['open', 'investigating', 'resolved', 'stale']
-    const cur = order.indexOf(inv.status)
-    const next = order[(cur + 1) % order.length]
-    if (next === 'resolved') {
-      setRootCause(inv.root_cause || '')
-      setSolution(inv.solution || '')
-      setAskResolve(true)
-      return
-    }
-    setBusy(true)
-    try {
-      const u = await updateInvestigation(id, { status: next })
-      setInv(u)
-      onChanged()
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : '更新状态失败')
-    } finally {
-      setBusy(false)
-    }
-  }
   const confirmResolve = async () => {
     setAskResolve(false)
     setBusy(true)
@@ -231,20 +209,10 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
 
       {/* Header */}
       <header className="flex items-center justify-between px-6 h-11 border-b border-[var(--color-border)] bg-[var(--color-bg)] font-mono text-[11px]">
-        <div className="flex items-center gap-2 text-[var(--color-text-dim)] min-w-0">
-          <span className="text-[var(--color-accent)]">~</span>
-          <span>/</span>
-          <span>orca</span>
-          <span>/</span>
-          <button onClick={() => navigate('/i')} className="hover:text-[var(--color-text-muted)] transition-colors">
-            investigations
-          </button>
-          <span>/</span>
-          <span className="text-[var(--color-text-muted)] truncate">{id.slice(0, 6)}</span>
-        </div>
+        <span className="text-[14px] font-medium text-[var(--color-text)]">调查详情</span>
         <div className="flex items-center gap-3">
           <span className="text-[var(--color-text-dim)] tabular-nums">
-            {entries.length} entries
+            {entries.length} 条记录
           </span>
           <button
             type="button"
@@ -259,7 +227,7 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
             aria-label={drawerOpen ? '关闭抽屉' : '打开抽屉'}
           >
             <span>✦</span>
-            <span>{drawerOpen ? 'close' : 'ask'}</span>
+            <span>{drawerOpen ? '关闭' : '提问'}</span>
           </button>
         </div>
       </header>
@@ -269,8 +237,8 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
           <div className="max-w-3xl mx-auto px-6 py-6">
           {archived && (
             <div className="mb-5 px-4 py-2.5 rounded border border-[var(--color-border-strong)] bg-[var(--color-surface)] flex items-center gap-3">
-              <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] border border-[var(--color-border)] px-1.5 py-0.5 rounded">
-                archived
+              <span className="text-[11px] font-medium text-[var(--color-text-dim)] bg-[var(--color-surface-2)] px-2 py-0.5 rounded-full">
+                已归档
               </span>
               <span className="text-[12.5px] text-[var(--color-text-muted)] flex-1">
                 此调查已于 {formatRelativeTime(inv.archived_at!)} 归档，内容只读。
@@ -279,10 +247,9 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
                 type="button"
                 disabled={busy}
                 onClick={doUnarchive}
-                className="px-2.5 h-7 rounded bg-[var(--color-accent)] text-[var(--color-bg)]
+                className="px-3 h-7 rounded bg-[var(--color-accent)] text-white
                   hover:bg-[var(--color-accent-hover)]
-                  disabled:opacity-50
-                  font-mono text-[12px] uppercase tracking-[0.15em] transition-colors"
+                  disabled:opacity-50 text-[12px] transition-colors"
               >
                 取消归档
               </button>
@@ -303,49 +270,81 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
                     if (e.key === 'Enter') saveTitle()
                     if (e.key === 'Escape') setEditingTitle(false)
                   }}
-                  className="w-full font-semibold text-[32px] leading-tight text-[var(--color-text)]
-                    bg-transparent border-b border-[var(--color-border)]
-                    focus:border-[var(--color-text)] focus:outline-none pb-1"
+                  className="w-full font-semibold text-[24px] leading-tight text-[var(--color-text)]
+                    bg-transparent border-b-2 border-[var(--color-accent)]
+                    focus:outline-none pb-1"
                 />
               ) : (
-                <h1
-                  className={`font-semibold text-[32px] leading-tight text-[var(--color-text)]
-                    ${archived ? 'line-through decoration-[var(--color-text-dim)]' : 'cursor-text hover:bg-[var(--color-surface)]'}`}
-                  onClick={() => {
-                    if (archived) return
-                    setTitleDraft(inv.title)
-                    setEditingTitle(true)
-                  }}
-                  title={archived ? '已归档' : '点击编辑'}
-                >
-                  {inv.title}
-                </h1>
+                <div className="group flex items-start gap-2">
+                  <h1 className={`font-semibold text-[24px] leading-tight text-[var(--color-text)]
+                    ${archived ? 'line-through decoration-[var(--color-text-dim)]' : ''}`}>
+                    {inv.title}
+                  </h1>
+                  {!archived && (
+                    <button
+                      type="button"
+                      onClick={() => { setTitleDraft(inv.title); setEditingTitle(true) }}
+                      className="shrink-0 mt-1 w-6 h-6 grid place-items-center rounded
+                        text-[var(--color-text-dim)] opacity-0 group-hover:opacity-100
+                        hover:text-[var(--color-accent)] hover:bg-[var(--color-surface-2)]
+                        transition-all"
+                      title="编辑标题"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5z" /></svg>
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>
 
           {/* Meta */}
           <div className="flex items-center gap-3 mb-5 flex-wrap">
-            <button
-              type="button"
-              onClick={cycleStatus}
-              disabled={archived || busy}
-              title={archived ? '已归档不可变' : '点击切换状态'}
-              className={`${archived ? 'cursor-not-allowed' : 'hover:brightness-110 cursor-pointer'}`}
-            >
+            {archived ? (
               <StatusBadge status={inv.status} />
-            </button>
-            <span className="text-[11px] font-mono text-[var(--color-text-dim)]">
-              severity={inv.severity}
-            </span>
+            ) : (
+              <div className="relative">
+                <select
+                  value={inv.status}
+                  onChange={async (e) => {
+                    const next = e.target.value as InvestigationStatus
+                    if (next === inv.status) return
+                    if (next === 'resolved') {
+                      setRootCause(inv.root_cause || '')
+                      setSolution(inv.solution || '')
+                      setAskResolve(true)
+                      return
+                    }
+                    setBusy(true)
+                    try {
+                      const u = await updateInvestigation(id, { status: next })
+                      setInv(u); onChanged()
+                    } catch (ex) { setErr(ex instanceof Error ? ex.message : '更新失败') }
+                    finally { setBusy(false) }
+                  }}
+                  disabled={busy}
+                  className="appearance-none text-[13px] font-medium pl-3 pr-8 py-1.5 rounded-lg border cursor-pointer
+                    bg-[var(--color-surface)] text-[var(--color-text)] border-[var(--color-border-strong)]
+                    hover:bg-[var(--color-surface-2)] hover:border-[var(--color-accent)]
+                    focus:outline-none focus:border-[var(--color-accent)]
+                    disabled:opacity-50 transition-all"
+                >
+                  <option value="open">待处理</option>
+                  <option value="investigating">排查中</option>
+                  <option value="resolved">已解决</option>
+                </select>
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[10px] text-[var(--color-text-dim)]">▾</span>
+              </div>
+            )}
+            <SeverityBadge severity={inv.severity} />
             {inv.source && (
-              <span className="text-[11px] font-mono text-[var(--color-text-dim)]">
-                source={inv.source}
+              <span className="text-[12px] text-[var(--color-text-dim)]">
+                来源：{inv.source}
               </span>
             )}
             {inv.resolved_at && (
-              <span className="text-[11px] font-mono text-[var(--color-text-dim)]">
-                resolved {formatRelativeTime(inv.resolved_at)}
+              <span className="text-[12px] text-[var(--color-text-dim)]">
+                {formatRelativeTime(inv.resolved_at)}解决
               </span>
             )}
             {inv.related_services && inv.related_services.length > 0 && (
@@ -365,10 +364,7 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
                 type="button"
                 onClick={() => setAskArchive(true)}
                 disabled={busy}
-                className="ml-auto px-2.5 h-7 rounded border border-[var(--color-border-strong)]
-                  hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)]
-                  disabled:opacity-50
-                  font-mono text-[12px] uppercase tracking-[0.15em] transition-colors"
+                className="ml-auto orca-btn-secondary"
               >
                 归档
               </button>
@@ -377,8 +373,17 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
 
           {/* Description */}
           <section className="mb-6">
-            <div className="text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono mb-2">
-              描述
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[15px] font-semibold text-[var(--color-text)]">描述</span>
+              {!archived && !editingDesc && (
+                <button
+                  type="button"
+                  onClick={() => { setDescDraft(inv.description || ''); setEditingDesc(true) }}
+                  className="orca-btn-link text-[12px]"
+                >
+                  编辑
+                </button>
+              )}
             </div>
             {editingDesc && !archived ? (
               <div>
@@ -387,41 +392,25 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
                   value={descDraft}
                   onChange={(e) => setDescDraft(e.target.value)}
                   rows={5}
-                  className="w-full px-3 py-2 rounded border border-[var(--color-border-strong)]
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--color-border-strong)]
                     bg-[var(--color-bg)] text-[14px] text-[var(--color-text)] leading-relaxed
-                    focus:border-[var(--color-text)] focus:outline-none transition-colors"
+                    focus:border-[var(--color-accent)] focus:outline-none transition-colors"
                 />
-                <div className="mt-1.5 flex gap-2 justify-end">
-                  <button
-                    onClick={() => setEditingDesc(false)}
-                    className="px-2.5 h-7 rounded border border-[var(--color-border-strong)] text-[var(--color-text)]
-                      font-mono text-[12px] uppercase tracking-[0.15em]"
-                  >
+                <div className="mt-2 flex gap-2 justify-end">
+                  <button onClick={() => setEditingDesc(false)} className="orca-btn-secondary">
                     取消
                   </button>
-                  <button
-                    onClick={saveDesc}
-                    disabled={busy}
-                    className="px-2.5 h-7 rounded bg-[var(--color-accent)] text-[var(--color-bg)]
-                      font-mono text-[12px] uppercase tracking-[0.15em]"
-                  >
+                  <button onClick={saveDesc} disabled={busy} className="orca-btn-primary">
                     保存
                   </button>
                 </div>
               </div>
             ) : (
-              <div
-                className={`orca-prose ${archived ? '' : 'cursor-text hover:bg-[var(--color-surface)] rounded px-2 -mx-2'}`}
-                onClick={() => {
-                  if (archived) return
-                  setDescDraft(inv.description || '')
-                  setEditingDesc(true)
-                }}
-              >
+              <div className="orca-prose">
                 {inv.description ? (
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{inv.description}</ReactMarkdown>
                 ) : (
-                  <p className="text-[13px] text-[var(--color-text-dim)] italic">（无描述，点击添加）</p>
+                  <p className="text-[13px] text-[var(--color-text-dim)] italic">暂无描述</p>
                 )}
               </div>
             )}
@@ -455,15 +444,15 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
           {/* Timeline */}
           <section className="mb-6">
             <div className="flex items-center justify-between mb-3">
-              <div className="text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono">
-                时间线 · timeline
-              </div>
+              <span className="text-[15px] font-semibold text-[var(--color-text)]">
+                时间线
+              </span>
               {!archived && (
                 <button
                   onClick={() => setShowAddEntry(true)}
-                  className="text-[11px] font-mono text-[var(--color-accent)] hover:text-[var(--color-accent-hover)]"
+                  className="orca-btn-link text-[12px]"
                 >
-                  + 追加
+                  + 添加
                 </button>
               )}
             </div>
@@ -487,12 +476,12 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
                       bg-[var(--color-bg)] text-[11.5px] font-mono text-[var(--color-text)]
                       focus:border-[var(--color-text)] focus:outline-none"
                   >
-                    <option value="note">note</option>
-                    <option value="discovery">discovery</option>
-                    <option value="action">action</option>
+                    <option value="note">备注</option>
+                    <option value="discovery">发现</option>
+                    <option value="action">操作</option>
                   </select>
-                  <span className="text-[12px] text-[var(--color-text-dim)] font-mono">
-                    作为 user 追加
+                  <span className="text-[12px] text-[var(--color-text-dim)]">
+                    手动添加
                   </span>
                 </div>
                 <textarea
@@ -518,11 +507,9 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
                   <button
                     onClick={submitEntry}
                     disabled={busy || !entryContent.trim()}
-                    className="px-2.5 h-7 rounded bg-[var(--color-accent)] text-[var(--color-bg)]
-                      disabled:opacity-50
-                      font-mono text-[12px] uppercase tracking-[0.15em]"
+                    className="orca-btn-primary"
                   >
-                    追加
+                    添加
                   </button>
                 </div>
               </div>
@@ -541,17 +528,13 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
                 onClick={(e) => e.stopPropagation()}
                 className="w-full max-w-lg rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface)] shadow-2xl overflow-hidden"
               >
-                <div className="flex items-center justify-between px-5 h-9 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
-                  <div className="flex items-center gap-2 font-mono text-[12px] uppercase tracking-[0.22em]">
-                    <span className="text-[var(--color-ok)]">resolve</span>
-                    <span className="text-[var(--color-text-dim)] opacity-60">/</span>
-                    <span className="text-[var(--color-text-dim)]">结单</span>
-                  </div>
+                <div className="flex items-center px-5 h-10 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+                  <span className="text-[14px] font-medium text-[var(--color-text)]">结单</span>
                 </div>
                 <div className="px-5 pt-4 pb-4 space-y-3">
                   <div>
-                    <label className="block text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono mb-1.5">
-                      根因 root cause
+                    <label className="block text-[13px] text-[var(--color-text-muted)] mb-1.5">
+                      根因分析
                     </label>
                     <textarea
                       value={rootCause}
@@ -563,8 +546,8 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono mb-1.5">
-                      解决方案 solution
+                    <label className="block text-[13px] text-[var(--color-text-muted)] mb-1.5">
+                      解决方案
                     </label>
                     <textarea
                       value={solution}
@@ -577,19 +560,10 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[var(--color-border)] bg-[var(--color-bg)]">
-                  <button
-                    onClick={() => setAskResolve(false)}
-                    className="px-3 h-8 rounded border border-[var(--color-border-strong)] text-[var(--color-text)]
-                      font-mono text-[11px] uppercase tracking-[0.15em]"
-                  >
+                  <button onClick={() => setAskResolve(false)} className="orca-btn-secondary">
                     取消
                   </button>
-                  <button
-                    onClick={confirmResolve}
-                    disabled={busy}
-                    className="px-3 h-8 rounded bg-[var(--color-accent)] text-[var(--color-bg)]
-                      font-mono text-[11px] uppercase tracking-[0.15em]"
-                  >
+                  <button onClick={confirmResolve} disabled={busy} className="orca-btn-primary">
                     确认结单
                   </button>
                 </div>
@@ -618,20 +592,26 @@ function TimelineEntry({ entry }: { entry: InvestigationEntry }) {
     resolution: 'var(--color-ok)',
     note: 'var(--color-text-dim)',
   }
+  const typeLabel: Record<string, string> = {
+    discovery: '发现',
+    action: '操作',
+    resolution: '结论',
+    note: '备注',
+  }
   return (
     <div className="relative">
       <span
         className="absolute -left-[27px] top-[7px] w-2.5 h-2.5 rounded-full border-2 border-[var(--color-bg)]"
         style={{ backgroundColor: typeColor[entry.type] }}
       />
-      <div className="flex items-center gap-2 mb-1 text-[11px] font-mono text-[var(--color-text-dim)]">
-        <span style={{ color: typeColor[entry.type] }} className="uppercase tracking-[0.18em]">
-          {entry.type}
+      <div className="flex items-center gap-2 mb-1 text-[12px] text-[var(--color-text-dim)]">
+        <span style={{ color: typeColor[entry.type] }} className="font-medium">
+          {typeLabel[entry.type] || entry.type}
         </span>
         <span>·</span>
-        <span>{entry.author}</span>
+        <span>{entry.author === 'ai' ? 'AI' : entry.author}</span>
         <span>·</span>
-        <span className="tabular-nums">{formatRelativeTime(entry.created_at)}</span>
+        <span>{formatRelativeTime(entry.created_at)}</span>
       </div>
       <div className="orca-prose text-[13.5px]">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{entry.content}</ReactMarkdown>

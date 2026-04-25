@@ -16,25 +16,40 @@ export function SeverityDot({ severity }: { severity: InvestigationSeverity }) {
   )
 }
 
-export function StatusBadge({ status }: { status: InvestigationStatus }) {
-  const label: Record<InvestigationStatus, string> = {
-    open: 'open',
-    investigating: 'invest.',
-    resolved: 'resolved',
-    stale: 'stale',
+export function SeverityBadge({ severity }: { severity: InvestigationSeverity }) {
+  const label: Record<InvestigationSeverity, string> = {
+    critical: '严重',
+    warning: '警告',
+    info: '信息',
   }
-  const cls: Record<InvestigationStatus, string> = {
-    open: 'text-[var(--color-accent)] border-[var(--color-accent)]/40',
-    investigating: 'text-[var(--color-warn)] border-[var(--color-warn)]/40',
-    resolved: 'text-[var(--color-ok)] border-[var(--color-ok)]/40',
-    stale: 'text-[var(--color-text-dim)] border-[var(--color-border)]',
+  const cls: Record<InvestigationSeverity, string> = {
+    critical: 'bg-[var(--color-danger)]/10 text-[var(--color-danger)] border-[var(--color-danger)]/20',
+    warning: 'bg-[var(--color-warn)]/10 text-[var(--color-warn)] border-[var(--color-warn)]/20',
+    info: 'bg-[var(--color-surface-2)] text-[var(--color-text-dim)] border-[var(--color-border)]',
   }
   return (
-    <span
-      className={`text-[11px] font-mono uppercase tracking-[0.18em] px-1.5 py-0.5 border rounded ${cls[status]}`}
-    >
-      {label[status]}
+    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${cls[severity]}`}>
+      {label[severity]}
     </span>
   )
 }
 
+export function StatusBadge({ status }: { status: InvestigationStatus }) {
+  const label: Record<InvestigationStatus, string> = {
+    open: '待处理',
+    investigating: '排查中',
+    resolved: '已解决',
+    stale: '已过期',
+  }
+  const cls: Record<InvestigationStatus, string> = {
+    open: 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] border-[var(--color-accent)]/20',
+    investigating: 'bg-[var(--color-warn)]/10 text-[var(--color-warn)] border-[var(--color-warn)]/20',
+    resolved: 'bg-[var(--color-ok)]/10 text-[var(--color-ok)] border-[var(--color-ok)]/20',
+    stale: 'bg-[var(--color-surface-2)] text-[var(--color-text-dim)] border-[var(--color-border)]',
+  }
+  return (
+    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${cls[status]}`}>
+      {label[status]}
+    </span>
+  )
+}

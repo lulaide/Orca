@@ -187,8 +187,8 @@ function ConnectionRow({ conn, onChanged }: { conn: MCPConnectionInfo; onChanged
 function Btn({ onClick, disabled, danger, children }: { onClick: () => void; disabled?: boolean; danger?: boolean; children: React.ReactNode }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled}
-      className={`text-[11px] font-mono px-2 py-1 rounded border transition-colors disabled:opacity-50
-        ${danger ? 'border-[var(--color-danger)]/40 text-[var(--color-danger)]' : 'border-[var(--color-border-strong)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface)]'}`}>
+      className={`text-[13px] px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50
+        ${danger ? 'border-[var(--color-danger)]/40 text-[var(--color-danger)] hover:bg-[var(--color-danger)]/5' : 'border-[var(--color-border-strong)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]'}`}>
       {children}
     </button>
   )

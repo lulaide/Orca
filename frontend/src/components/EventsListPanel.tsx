@@ -57,7 +57,7 @@ export function EventsListPanel({ refreshToken }: Props) {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full">
-      <header className="flex items-center justify-between px-6 h-11 border-b border-[var(--color-border)] bg-[var(--color-bg)] font-mono text-[11px]">
+      <header className="flex items-center justify-between px-6 h-11 border-b border-[var(--color-border)] bg-[var(--color-bg)] text-[12px]">
         <div className="flex items-center gap-2 text-[var(--color-text-dim)]">
           <span className="text-[var(--color-accent)]">~</span>
           <span>/</span>
@@ -75,7 +75,7 @@ export function EventsListPanel({ refreshToken }: Props) {
               key={v.key}
               type="button"
               onClick={() => setView(v.key)}
-              className={`relative -mb-px pb-2.5 px-0.5 font-mono text-[11.5px] uppercase tracking-[0.14em] transition-colors
+              className={`relative -mb-px pb-2.5 px-0.5 text-[13px] font-medium transition-colors
                 ${active
                   ? 'text-[var(--color-text)]'
                   : 'text-[var(--color-text-dim)] hover:text-[var(--color-text-muted)]'}`}
@@ -131,17 +131,17 @@ function EventRow({ ev }: { ev: OrcaEvent }) {
           {ev.title}
         </span>
         {!processed && (
-          <span className="text-[11px] font-mono uppercase tracking-[0.18em] px-1.5 py-0.5 border rounded text-[var(--color-warn)] border-[var(--color-warn)]/40">
+          <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-warn)]/10 text-[var(--color-warn)] border border-[var(--color-warn)]/20">
             pending
           </span>
         )}
         {processed && (
-          <span className="text-[11px] font-mono uppercase tracking-[0.18em] px-1.5 py-0.5 border rounded text-[var(--color-ok)] border-[var(--color-ok)]/40">
+          <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-ok)]/10 text-[var(--color-ok)] border border-[var(--color-ok)]/20">
             done
           </span>
         )}
       </div>
-      <div className="flex items-center gap-3 text-[11px] font-mono text-[var(--color-text-dim)]">
+      <div className="flex items-center gap-3 text-[12px] text-[var(--color-text-dim)]">
         <span className="tabular-nums">{formatRelativeTime(ev.created_at)}</span>
         <span>· {ev.source}</span>
         {ev.related_services && ev.related_services.length > 0 && (
@@ -163,8 +163,8 @@ function EventRow({ ev }: { ev: OrcaEvent }) {
 function EmptyView() {
   return (
     <div className="py-10 orca-fade-in">
-      <div className="text-[11.5px] uppercase tracking-[0.25em] text-[var(--color-text-dim)] font-mono mb-3">
-        empty · 空
+      <div className="text-[13px] text-[var(--color-text-dim)] mb-3">
+        暂无数据
       </div>
       <h2 className="font-semibold text-[32px] leading-tight text-[var(--color-text)] mb-3">
         还没有任何事件

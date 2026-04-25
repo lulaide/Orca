@@ -49,9 +49,22 @@ export function ToolCallCard({ toolCall, output }: Props) {
         <span className="font-mono text-xs text-[var(--color-text-dim)]">$</span>
         <code className="font-mono text-[12.5px] text-[var(--color-accent)]">{name}</code>
         <span className="flex-1" />
-        <span className={`text-[11.5px] font-mono uppercase tracking-[0.15em] ${stateColor}`}>
-          {running && (
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-current mr-1.5 orca-pulse-dot align-middle" />
+        <span className={`flex items-center gap-1 text-[12px] ${stateColor}`}>
+          {running ? (
+            <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.3" strokeWidth="2.5" />
+              <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
+          ) : isError ? (
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M15 9l-6 6M9 9l6 6" />
+            </svg>
+          ) : (
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9 12l2 2 4-4" />
+            </svg>
           )}
           {stateLabel}
         </span>
@@ -59,7 +72,7 @@ export function ToolCallCard({ toolCall, output }: Props) {
       {open && (
         <div className="px-3 pb-2.5 pt-1 border-t border-[var(--color-border)] space-y-2 orca-fade-in">
           <div>
-            <div className="text-[11.5px] uppercase tracking-[0.18em] text-[var(--color-text-dim)] mb-1 font-mono">
+            <div className="text-[12px] font-medium text-[var(--color-text-dim)] mb-1">
               输入
             </div>
             <pre className="bg-[var(--color-bg)] border border-[var(--color-border)] p-2 rounded overflow-x-auto text-[11.5px] font-mono text-[var(--color-text-muted)] leading-[1.55]">
@@ -68,7 +81,7 @@ export function ToolCallCard({ toolCall, output }: Props) {
           </div>
           {!running && (
             <div>
-              <div className="text-[11.5px] uppercase tracking-[0.18em] text-[var(--color-text-dim)] mb-1 font-mono">
+              <div className="text-[12px] font-medium text-[var(--color-text-dim)] mb-1">
                 输出
               </div>
               <pre

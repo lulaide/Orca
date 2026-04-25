@@ -186,13 +186,13 @@ export function InvestigationChatDrawer({ investigation, onClose }: Props) {
     <div className="flex flex-col h-full min-h-0 bg-[var(--color-bg)]">
       {/* Strip */}
       <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--color-border)] font-mono text-[11px]">
-        <div className="flex items-center gap-1.5 text-[var(--color-text-dim)]">
+        <div className="flex items-center gap-1.5 text-[var(--color-text-muted)]">
           <span className="text-[var(--color-accent)]">✦</span>
-          <span>assistant</span>
+          <span className="text-[13px]">对话</span>
           {conversationId && (
             <>
-              <span>·</span>
-              <span className="text-[var(--color-text-muted)]">sess.{conversationId.slice(0, 6)}</span>
+              <span className="text-[var(--color-text-dim)]">·</span>
+              <span className="text-[var(--color-text-dim)]">{conversationId.slice(0, 6)}</span>
             </>
           )}
         </div>
@@ -329,7 +329,7 @@ export function InvestigationChatDrawer({ investigation, onClose }: Props) {
                   <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
                 </svg>
               ) : (
-                'send'
+                '发送'
               )}
             </button>
           </div>

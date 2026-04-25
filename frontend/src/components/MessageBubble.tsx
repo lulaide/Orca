@@ -1,6 +1,27 @@
+import { useState, useCallback, useEffect } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { createHighlighter, type Highlighter } from 'shiki'
 import type { ChatMessage } from '../api'
+
+// 全局单例 highlighter，懒加载
+let highlighterPromise: Promise<Highlighter> | null = null
+const loadedLangs = new Set<string>()
+
+function getHighlighter(): Promise<Highlighter> {
+  if (!highlighterPromise) {
+    highlighterPromise = createHighlighter({
+      themes: ['github-light', 'github-dark'],
+      langs: ['javascript', 'typescript', 'python', 'go', 'bash', 'json', 'yaml', 'sql', 'html', 'css', 'markdown', 'dockerfile', 'shell'],
+    }).then((h) => {
+      for (const lang of ['javascript', 'typescript', 'python', 'go', 'bash', 'json', 'yaml', 'sql', 'html', 'css', 'markdown', 'dockerfile', 'shell']) {
+        loadedLangs.add(lang)
+      }
+      return h
+    })
+  }
+  return highlighterPromise
+}
 import { ToolCallCard } from './ToolCallCard'
 import { InvestigationRefCard } from './InvestigationRefCard'
 import { InvestigationReferenceCard } from './InvestigationReferenceCard'
@@ -56,24 +77,128 @@ export function AssistantTurn({ messages, toolOutputs }: AssistantTurnProps) {
   )
 }
 
-// 自定义 Markdown 组件：代码块加语言标签
+// 代码块复制按钮
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }, [text])
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="code-copy-btn"
+      title="复制代码"
+    >
+      {copied ? (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+        </svg>
+      )}
+      <span className="text-[11px]">{copied ? '已复制' : '复制'}</span>
+    </button>
+  )
+}
+
+// 提取代码块纯文本
+function extractText(node: React.ReactNode): string {
+  if (typeof node === 'string') return node
+  if (Array.isArray(node)) return node.map(extractText).join('')
+  if (node && typeof node === 'object' && 'props' in node) {
+    return extractText((node as React.ReactElement<{ children?: React.ReactNode }>).props.children)
+  }
+  return ''
+}
+
+// 读取当前主题
+function currentTheme(): 'github-light' | 'github-dark' {
+  return document.documentElement.getAttribute('data-theme') === 'dark'
+    ? 'github-dark'
+    : 'github-light'
+}
+
+// 高亮代码块
+function HighlightedCode({ code, lang }: { code: string; lang: string }) {
+  const [html, setHtml] = useState<string | null>(null)
+  const [theme, setTheme] = useState(currentTheme)
+
+  // 监听主题变化
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTheme(currentTheme()))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getHighlighter().then(async (h) => {
+      if (cancelled) return
+      if (!loadedLangs.has(lang)) {
+        try {
+          await h.loadLanguage(lang as never)
+          loadedLangs.add(lang)
+        } catch {
+          if (!cancelled) setHtml('')
+          return
+        }
+      }
+      if (cancelled) return
+      const result = h.codeToHtml(code, { lang, theme })
+      setHtml(result)
+    })
+    return () => { cancelled = true }
+  }, [code, lang, theme])
+
+  if (html === null) return <code>{code}</code>
+  if (html === '') return <code>{code}</code>
+  return <div className="shiki-wrapper" dangerouslySetInnerHTML={{ __html: html }} />
+}
+
+// 自定义 Markdown 组件：代码块加语言标签 + 复制按钮 + 语法高亮
 const markdownComponents: Components = {
   pre({ children, ...props }) {
-    return <pre {...props}>{children}</pre>
+    const text = extractText(children).replace(/\n$/, '')
+    // 检查子元素是否是有语言的 code 块（HighlightedCode 会自带 pre）
+    let lang: string | null = null
+    if (children && typeof children === 'object' && 'props' in children) {
+      const child = children as React.ReactElement<{ className?: string }>
+      const match = /language-(\w+)/.exec(child.props.className || '')
+      if (match) lang = match[1]
+    }
+    if (lang) {
+      // shiki 输出自带 pre，外层改用 div
+      return (
+        <div className="code-block-wrapper">
+          <span className="code-lang-label">{lang}</span>
+          <CopyButton text={text} />
+          <HighlightedCode code={text} lang={lang} />
+        </div>
+      )
+    }
+    return (
+      <pre {...props}>
+        <CopyButton text={text} />
+        {children}
+      </pre>
+    )
   },
   table({ children, ...props }) {
     return <div className="overflow-x-auto -mx-2 px-2"><table {...props}>{children}</table></div>
   },
   code({ className, children, ...props }) {
     const match = /language-(\w+)/.exec(className || '')
-    // 块级代码（在 pre 内）
+    // 块级代码由 pre 组件处理高亮，这里只处理行内代码
     if (match) {
-      return (
-        <>
-          <span className="code-lang-label">{match[1]}</span>
-          <code className={className} {...props}>{children}</code>
-        </>
-      )
+      return <code className={className} {...props}>{children}</code>
     }
     return <code className={className} {...props}>{children}</code>
   },

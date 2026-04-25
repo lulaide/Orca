@@ -227,14 +227,100 @@ input:focus-visible {
 .orca-prose .code-lang-label {
   position: absolute;
   top: 0;
-  right: 0;
+  left: 0;
   padding: 3px 10px;
   font-family: var(--font-mono);
   font-size: 0.7rem;
   color: var(--color-text-dim);
   opacity: 0.6;
-  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
   background: var(--color-surface-3);
+}
+.orca-prose pre .code-copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: none;
+  background: var(--color-surface-3);
+  color: var(--color-text-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+  font-family: var(--font-sans);
+  z-index: 1;
+}
+.orca-prose pre:hover .code-copy-btn {
+  opacity: 1;
+}
+.orca-prose pre .code-copy-btn:hover {
+  color: var(--color-text);
+  background: var(--color-surface-2);
+}
+/* shiki 高亮代码块 */
+.orca-prose .code-block-wrapper {
+  position: relative;
+  margin: 0.8em 0;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+.orca-prose .code-block-wrapper .code-copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: none;
+  background: var(--color-surface-3);
+  color: var(--color-text-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+  font-family: var(--font-sans);
+  z-index: 1;
+}
+.orca-prose .code-block-wrapper:hover .code-copy-btn {
+  opacity: 1;
+}
+.orca-prose .code-block-wrapper .code-copy-btn:hover {
+  color: var(--color-text);
+  background: var(--color-surface-2);
+}
+.orca-prose .code-block-wrapper .code-lang-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 3px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-text-dim);
+  opacity: 0.6;
+  border-bottom-right-radius: 8px;
+  background: var(--color-surface-3);
+  z-index: 1;
+}
+.orca-prose .shiki-wrapper pre {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  padding: 1rem 1.2rem;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  background: var(--color-surface-2) !important;
+}
+.orca-prose .shiki-wrapper code {
+  background: transparent !important;
+  border: none;
+  padding: 0;
+  font-size: inherit;
 }
 .orca-prose .table-wrapper {
   overflow-x: auto;

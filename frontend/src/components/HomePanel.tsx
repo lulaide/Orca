@@ -295,7 +295,7 @@ function ClusterStatusCard() {
 
   return (
     <section className="md:w-1/3 min-w-[240px]">
-      <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--color-text-dim)] font-mono mb-2">
+      <div className="text-[11px] text-[var(--color-text-dim)] font-medium mb-2">
         cluster · 状态
       </div>
       <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 space-y-2 font-mono text-[12px]">
@@ -371,7 +371,7 @@ function PendingInvestigationsPanel() {
   return (
     <section className="flex-1 min-w-0">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--color-text-dim)] font-mono">
+        <div className="text-[11px] text-[var(--color-text-dim)] font-medium">
           investigations · 待处理
         </div>
         <button

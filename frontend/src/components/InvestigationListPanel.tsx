@@ -101,7 +101,7 @@ export function InvestigationListPanel({ view, refreshToken, onChanged }: Props)
           className="flex items-center gap-1.5 px-2.5 h-7 rounded
             bg-[var(--color-accent)] text-[var(--color-bg)]
             hover:bg-[var(--color-accent-hover)]
-            font-mono text-[12px] uppercase tracking-[0.15em] transition-colors"
+            text-[12px] font-medium transition-colors"
         >
           <span className="leading-none">+</span>
           <span>新建</span>
@@ -117,7 +117,7 @@ export function InvestigationListPanel({ view, refreshToken, onChanged }: Props)
               key={v.key}
               type="button"
               onClick={() => pushView(v.key)}
-              className={`relative -mb-px pb-2.5 px-0.5 font-mono text-[11.5px] uppercase tracking-[0.14em] transition-colors
+              className={`relative -mb-px pb-2.5 px-0.5 text-[11.5px] font-medium transition-colors
                 ${active
                   ? 'text-[var(--color-text)]'
                   : 'text-[var(--color-text-dim)] hover:text-[var(--color-text-muted)]'}`}
@@ -181,8 +181,8 @@ function InvestigationRow({ inv }: { inv: Investigation }) {
         </span>
         <StatusBadge status={inv.status} />
         {archived && (
-          <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] border border-[var(--color-border)] px-1.5 py-0.5 rounded">
-            archived
+          <span className="text-[11px] font-medium text-[var(--color-text-dim)] border border-[var(--color-border)] px-1.5 py-0.5 rounded">
+            已归档
           </span>
         )}
       </div>
@@ -203,7 +203,7 @@ function InvestigationRow({ inv }: { inv: Investigation }) {
 function EmptyView({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="py-10 orca-fade-in">
-      <div className="text-[11.5px] uppercase tracking-[0.25em] text-[var(--color-text-dim)] font-mono mb-3">
+      <div className="text-[11.5px] text-[var(--color-text-dim)] font-medium mb-3">
         empty · 空
       </div>
       <h2 className="font-semibold text-[32px] leading-tight text-[var(--color-text)] mb-3">
@@ -217,7 +217,7 @@ function EmptyView({ onCreate }: { onCreate: () => void }) {
         onClick={onCreate}
         className="px-3 h-8 rounded bg-[var(--color-accent)] text-[var(--color-bg)]
           hover:bg-[var(--color-accent-hover)]
-          font-mono text-[11px] uppercase tracking-[0.15em] transition-colors"
+          text-[11px] font-medium transition-colors"
       >
         新建一个
       </button>

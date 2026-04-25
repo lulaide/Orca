@@ -83,8 +83,8 @@ export function InvestigationRefCard({ toolCall, output }: Props) {
           </span>
           {inv.status && <StatusBadge status={inv.status} />}
           {archived && (
-            <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] border border-[var(--color-border)] px-1.5 py-0.5 rounded">
-              archived
+            <span className="text-[11px] font-medium text-[var(--color-text-dim)] border border-[var(--color-border)] px-1.5 py-0.5 rounded">
+              已归档
             </span>
           )}
         </div>

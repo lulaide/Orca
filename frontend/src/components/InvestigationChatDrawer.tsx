@@ -213,7 +213,7 @@ export function InvestigationChatDrawer({ investigation, onClose }: Props) {
       {/* 顶部 chip bar：本对话已关联的 investigations（发送后才有） */}
       {conversationId && convInvestigations.length > 0 && (
         <div className="border-b border-[var(--color-border)] px-3 py-2 flex items-center gap-1.5 flex-wrap">
-          <span className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] mr-1">
+          <span className="text-[10.5px] font-medium text-[var(--color-text-dim)] mr-1">
             引用
           </span>
           {convInvestigations.map((inv) => (
@@ -320,7 +320,7 @@ export function InvestigationChatDrawer({ investigation, onClose }: Props) {
                 hover:bg-[var(--color-accent-hover)]
                 disabled:bg-[var(--color-surface-3)] disabled:text-[var(--color-text-dim)]
                 disabled:cursor-not-allowed transition-colors
-                font-mono text-[10.5px] uppercase tracking-[0.15em]"
+                text-[10.5px]"
               aria-label={loading ? '发送中' : '发送'}
             >
               {loading ? (

@@ -187,7 +187,7 @@ function PageContent({ page, onUpdated }: { page: KnowledgePage; onUpdated: () =
           <h1 className="font-semibold text-[22px] text-[var(--color-text)]">{page.title}</h1>
           {!editing && (
             <button type="button" onClick={() => setEditing(true)}
-              className="text-[11px] font-mono text-[var(--color-accent)] hover:underline">编辑</button>
+              className="orca-btn-link text-[12px]">编辑</button>
           )}
         </div>
         {!editing ? (
@@ -204,12 +204,12 @@ function PageContent({ page, onUpdated }: { page: KnowledgePage; onUpdated: () =
             <div className="flex gap-2">
               <button type="button" onClick={handleSave} disabled={saving}
                 className="h-8 px-4 rounded bg-[var(--color-accent)] text-[var(--color-bg)]
-                  disabled:opacity-50 font-mono text-[11px] uppercase tracking-[0.15em]">
+                  disabled:opacity-50 text-[12px] font-medium">
                 {saving ? '保存中…' : '保存'}
               </button>
               <button type="button" onClick={() => { setDraft(page.content); setEditing(false) }}
                 className="h-8 px-3 rounded border border-[var(--color-border-strong)]
-                  text-[var(--color-text-muted)] font-mono text-[11px]">取消</button>
+                  text-[var(--color-text-muted)] text-[12px]">取消</button>
             </div>
           </div>
         )}
@@ -225,8 +225,8 @@ function ScanLogPanel({ entries, scanning }: { entries: ScanLogEntry[]; scanning
   return (
     <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)]/50 max-h-[40vh] overflow-y-auto">
       <div className="max-w-3xl mx-auto px-6 py-4 space-y-2">
-        <div className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-[var(--color-text-dim)] flex items-center gap-2">
-          scan log {scanning && <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />}
+        <div className="text-[11px] font-medium text-[var(--color-text-dim)] flex items-center gap-2">
+          扫描日志 {scanning && <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />}
         </div>
         {entries.map((e) => (
           <LogEntry key={e.id} entry={e} />

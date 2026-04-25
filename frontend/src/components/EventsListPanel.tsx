@@ -132,12 +132,12 @@ function EventRow({ ev }: { ev: OrcaEvent }) {
         </span>
         {!processed && (
           <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-warn)]/10 text-[var(--color-warn)] border border-[var(--color-warn)]/20">
-            pending
+            待处理
           </span>
         )}
         {processed && (
           <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-ok)]/10 text-[var(--color-ok)] border border-[var(--color-ok)]/20">
-            done
+            已处理
           </span>
         )}
       </div>

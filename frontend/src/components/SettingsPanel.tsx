@@ -187,11 +187,11 @@ function LLMSection({ status, onSaved }: { status: StatusResponse | null; onSave
             </div>
             <div className="flex gap-2">
               <button type="submit" disabled={busy || !provider || !model || !apiKey}
-                className="h-8 px-4 rounded bg-[var(--color-accent)] text-[var(--color-bg)] disabled:opacity-50 font-mono text-[11px] uppercase tracking-[0.15em]">
+                className="h-8 px-4 rounded bg-[var(--color-accent)] text-[var(--color-bg)] disabled:opacity-50 text-[12px] font-medium">
                 {busy ? '保存中…' : '保存'}
               </button>
               <button type="button" onClick={() => setEditing(false)}
-                className="h-8 px-3 rounded border border-[var(--color-border-strong)] text-[var(--color-text-muted)] font-mono text-[11px]">取消</button>
+                className="h-8 px-3 rounded border border-[var(--color-border-strong)] text-[var(--color-text-muted)] text-[12px]">取消</button>
             </div>
           </form>
         )}
@@ -242,11 +242,11 @@ function KubeSection({ status, onChanged }: { status: StatusResponse | null; onC
             </Field>
             <div className="flex gap-2">
               <button type="submit" disabled={busy || !kubeconfigText.trim()}
-                className="h-8 px-4 rounded bg-[var(--color-accent)] text-[var(--color-bg)] disabled:opacity-50 font-mono text-[11px] uppercase">
+                className="h-8 px-4 rounded bg-[var(--color-accent)] text-[var(--color-bg)] disabled:opacity-50 text-[12px] font-medium">
                 {busy ? '连接中…' : '连接'}
               </button>
               <button type="button" onClick={() => setShowUpload(false)}
-                className="h-8 px-3 rounded border border-[var(--color-border-strong)] text-[var(--color-text-muted)] font-mono text-[11px]">取消</button>
+                className="h-8 px-3 rounded border border-[var(--color-border-strong)] text-[var(--color-text-muted)] text-[12px]">取消</button>
             </div>
           </form>
         )}
@@ -382,12 +382,12 @@ function StatusDot({ ok }: { ok: boolean }) {
   return <span className={`w-2 h-2 rounded-full shrink-0 ${ok ? 'bg-[var(--color-ok)]' : 'bg-[var(--color-warn)]'}`} />
 }
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="block"><span className="text-[11px] font-mono text-[var(--color-text-dim)] mb-1 block">{label}</span>{children}</label>
+  return <label className="block"><span className="text-[11px] font-medium text-[var(--color-text-dim)] mb-1 block">{label}</span>{children}</label>
 }
 function Btn({ onClick, disabled, danger, children }: { onClick: () => void; disabled?: boolean; danger?: boolean; children: React.ReactNode }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled}
-      className={`text-[11px] font-mono px-2 py-1 rounded border transition-colors disabled:opacity-50
+      className={`text-[12px] px-2 py-1 rounded border transition-colors disabled:opacity-50
         ${danger ? 'border-[var(--color-danger)]/40 text-[var(--color-danger)]' : 'border-[var(--color-border-strong)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface)]'}`}>
       {children}
     </button>

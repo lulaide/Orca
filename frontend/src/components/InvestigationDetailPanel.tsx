@@ -224,7 +224,7 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
             type="button"
             onClick={toggleDrawer}
             className={`flex items-center gap-1.5 px-2 h-7 rounded border
-              font-mono text-[11px] uppercase tracking-[0.15em] transition-colors
+              text-[11px] font-medium transition-colors
               ${
                 drawerOpen
                   ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent-soft)]'
@@ -380,7 +380,7 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
           {/* Description */}
           <section className="mb-6">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[15px] font-semibold text-[var(--color-text)]">描述</span>
+              <span className="text-[17px] font-semibold text-[var(--color-text)]">描述</span>
               {!archived && !editingDesc && (
                 <button
                   type="button"
@@ -422,15 +422,15 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
             )}
           </section>
 
-          {/* Resolution (when resolved) */}
+          {/* 解决结论 */}
           {resolved && (inv.root_cause || inv.solution) && (
-            <section className="mb-6 rounded border border-[var(--color-ok)]/40 bg-[var(--color-ok)]/5 px-4 py-3">
-              <div className="text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-ok)] font-mono mb-2">
+            <section className="mb-6 rounded-lg border border-[var(--color-ok)]/40 bg-[var(--color-ok)]/5 px-5 py-4">
+              <div className="text-[15px] font-semibold text-[var(--color-ok)] mb-3">
                 已解决
               </div>
               {inv.root_cause && (
-                <div className="mb-2">
-                  <div className="text-[11px] text-[var(--color-text-dim)] font-mono mb-1">root cause</div>
+                <div className="mb-3">
+                  <div className="text-[13px] text-[var(--color-text-muted)] font-semibold mb-1">根因</div>
                   <div className="orca-prose">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{inv.root_cause}</ReactMarkdown>
                   </div>
@@ -438,7 +438,7 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
               )}
               {inv.solution && (
                 <div>
-                  <div className="text-[11px] text-[var(--color-text-dim)] font-mono mb-1">solution</div>
+                  <div className="text-[13px] text-[var(--color-text-muted)] font-semibold mb-1">解决方案</div>
                   <div className="orca-prose">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{inv.solution}</ReactMarkdown>
                   </div>
@@ -450,7 +450,7 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
           {/* Timeline */}
           <section className="mb-6">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[15px] font-semibold text-[var(--color-text)]">
+              <span className="text-[17px] font-semibold text-[var(--color-text)]">
                 时间线
               </span>
               {!archived && (
@@ -506,7 +506,7 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
                       setEntryContent('')
                     }}
                     className="px-2.5 h-7 rounded border border-[var(--color-border-strong)] text-[var(--color-text)]
-                      font-mono text-[12px] uppercase tracking-[0.15em]"
+                      text-[12px] font-medium"
                   >
                     取消
                   </button>
@@ -607,17 +607,22 @@ function TimelineEntry({ entry }: { entry: InvestigationEntry }) {
   return (
     <div className="relative">
       <span
-        className="absolute -left-[27px] top-[7px] w-2.5 h-2.5 rounded-full border-2 border-[var(--color-bg)]"
+        className="absolute -left-[27px] top-[9px] w-2.5 h-2.5 rounded-full border-2 border-[var(--color-bg)]"
         style={{ backgroundColor: typeColor[entry.type] }}
       />
-      <div className="flex items-center gap-2 mb-1 text-[12px] text-[var(--color-text-dim)]">
-        <span style={{ color: typeColor[entry.type] }} className="font-medium">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span
+          className="inline-flex px-2 py-0.5 rounded text-[12px] font-semibold"
+          style={{ color: typeColor[entry.type], backgroundColor: `color-mix(in srgb, ${typeColor[entry.type]} 12%, transparent)` }}
+        >
           {typeLabel[entry.type] || entry.type}
         </span>
-        <span>·</span>
-        <span>{entry.author === 'ai' ? 'AI' : entry.author}</span>
-        <span>·</span>
-        <span>{formatRelativeTime(entry.created_at)}</span>
+        <span className="text-[12px] text-[var(--color-text-dim)]">
+          {entry.author === 'ai' ? 'AI' : entry.author}
+        </span>
+        <span className="text-[12px] text-[var(--color-text-dim)]">
+          {formatRelativeTime(entry.created_at)}
+        </span>
       </div>
       <div className="orca-prose text-[13.5px]">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{entry.content}</ReactMarkdown>

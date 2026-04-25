@@ -93,7 +93,7 @@ export function DashboardPanel() {
                     <SeverityDot severity={ev.severity} />
                     <span className="flex-1 truncate text-[var(--color-text)]">{ev.title}</span>
                     {!ev.processed_at && (
-                      <span className="text-[11px] font-medium text-[var(--color-warn)]">pending</span>
+                      <span className="text-[11px] font-medium text-[var(--color-warn)]">待处理</span>
                     )}
                     <span className="text-[12px] text-[var(--color-text-dim)] shrink-0">
                       {formatRelativeTime(ev.created_at)}

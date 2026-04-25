@@ -158,7 +158,7 @@ export function Sidebar({ activeId, onSelect, refreshToken, route }: Props) {
               ? 'bg-[var(--color-bg)] text-[var(--color-text)]'
               : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text)]'}`}
         >
-          <span className="text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono">
+          <span className="text-[11.5px] text-[var(--color-text-dim)] font-medium">
             事件 · events
           </span>
           <span className="ml-auto text-[11px] text-[var(--color-text-dim)] font-mono">→</span>
@@ -175,7 +175,7 @@ export function Sidebar({ activeId, onSelect, refreshToken, route }: Props) {
               ? 'bg-[var(--color-bg)] text-[var(--color-text)]'
               : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text)]'}`}
         >
-          <span className="text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono">
+          <span className="text-[11.5px] text-[var(--color-text-dim)] font-medium">
             知识库 · knowledge
           </span>
           <span className="ml-auto text-[11px] text-[var(--color-text-dim)] font-mono">→</span>
@@ -185,7 +185,7 @@ export function Sidebar({ activeId, onSelect, refreshToken, route }: Props) {
       {/* Investigations section */}
       <div className="px-2 pb-2 border-b border-[var(--color-border)]">
         <div className="flex items-center justify-between px-3 py-1.5">
-          <span className="text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono">
+          <span className="text-[11.5px] text-[var(--color-text-dim)] font-medium">
             调查 · investigations
           </span>
           <button
@@ -238,7 +238,7 @@ export function Sidebar({ activeId, onSelect, refreshToken, route }: Props) {
 
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto px-2 pb-2">
-        <div className="px-3 py-1.5 text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono">
+        <div className="px-3 py-1.5 text-[11.5px] text-[var(--color-text-dim)] font-medium">
           最近
         </div>
         {convs.length === 0 && (

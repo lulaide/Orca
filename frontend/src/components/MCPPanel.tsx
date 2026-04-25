@@ -108,7 +108,7 @@ function ConnectionRow({ conn, onChanged }: { conn: MCPConnectionInfo; onChanged
         <div className="border-t border-[var(--color-border)] px-4 py-3 bg-[var(--color-surface)]/50 text-[12px] space-y-3">
           {conn.tools.length > 0 && (
             <div>
-              <div className="text-[10.5px] font-mono uppercase tracking-[0.18em] text-[var(--color-text-dim)] mb-1.5">工具</div>
+              <div className="text-[10.5px] font-medium text-[var(--color-text-dim)] mb-1.5">工具</div>
               <div className="flex flex-wrap gap-1.5">
                 {conn.tools.map((t) => (
                   <span key={t} className="px-2 py-0.5 rounded border border-[var(--color-border)] text-[11px] font-mono text-[var(--color-text-muted)]">{t}</span>
@@ -241,23 +241,23 @@ function AddConnectionForm({ onCreated }: { onCreated: () => void }) {
     <form onSubmit={handleSubmit} className="mb-6 rounded-md border border-[var(--color-accent)]/40 bg-[var(--color-surface)]/50 p-4 space-y-3">
       {err && <div className="text-[12px] text-[var(--color-danger)] font-mono">{err}</div>}
       <label className="block">
-        <span className="text-[11px] font-mono text-[var(--color-text-dim)] mb-1 block">名称 <span className="text-[var(--color-danger)]">*</span></span>
+        <span className="text-[11px] font-medium text-[var(--color-text-dim)] mb-1 block">名称 <span className="text-[var(--color-danger)]">*</span></span>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="cloudflare" className={INPUT_CLS} required />
       </label>
       {!isStdio && (
         <label className="block">
-          <span className="text-[11px] font-mono text-[var(--color-text-dim)] mb-1 block">URL <span className="text-[var(--color-danger)]">*</span></span>
+          <span className="text-[11px] font-medium text-[var(--color-text-dim)] mb-1 block">URL <span className="text-[var(--color-danger)]">*</span></span>
           <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://mcp.example.com/sse" className={INPUT_CLS} required />
         </label>
       )}
       {isStdio && (
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
-            <span className="text-[11px] font-mono text-[var(--color-text-dim)] mb-1 block">命令 <span className="text-[var(--color-danger)]">*</span></span>
+            <span className="text-[11px] font-medium text-[var(--color-text-dim)] mb-1 block">命令 <span className="text-[var(--color-danger)]">*</span></span>
             <input value={command} onChange={(e) => setCommand(e.target.value)} placeholder="npx" className={INPUT_CLS} required />
           </label>
           <label className="block">
-            <span className="text-[11px] font-mono text-[var(--color-text-dim)] mb-1 block">参数</span>
+            <span className="text-[11px] font-medium text-[var(--color-text-dim)] mb-1 block">参数</span>
             <input value={args} onChange={(e) => setArgs(e.target.value)} placeholder="-y @mcp/server" className={INPUT_CLS} />
           </label>
         </div>
@@ -269,7 +269,7 @@ function AddConnectionForm({ onCreated }: { onCreated: () => void }) {
       {showAdv && (
         <div className="space-y-3 pl-3 border-l-2 border-[var(--color-border)]">
           <label className="block">
-            <span className="text-[11px] font-mono text-[var(--color-text-dim)] mb-1 block">传输方式</span>
+            <span className="text-[11px] font-medium text-[var(--color-text-dim)] mb-1 block">传输方式</span>
             <select value={transport} onChange={(e) => setTransport(e.target.value as MCPTransport)} className={INPUT_CLS}>
               <option value="sse">SSE（远程）</option>
               <option value="stdio">stdio（本地）</option>
@@ -277,7 +277,7 @@ function AddConnectionForm({ onCreated }: { onCreated: () => void }) {
           </label>
           {!isStdio && (
             <label className="block">
-              <span className="text-[11px] font-mono text-[var(--color-text-dim)] mb-1 block">认证</span>
+              <span className="text-[11px] font-medium text-[var(--color-text-dim)] mb-1 block">认证</span>
               <select value={authType} onChange={(e) => setAuthType(e.target.value)} className={INPUT_CLS}>
                 <option value="oauth">OAuth 2.1</option>
                 <option value="none">自定义请求头</option>
@@ -286,7 +286,7 @@ function AddConnectionForm({ onCreated }: { onCreated: () => void }) {
           )}
           {authType !== 'oauth' && (
             <label className="block">
-              <span className="text-[11px] font-mono text-[var(--color-text-dim)] mb-1 block">自定义请求头（每行一个，格式 Key: Value）</span>
+              <span className="text-[11px] font-medium text-[var(--color-text-dim)] mb-1 block">自定义请求头（每行一个，格式 Key: Value）</span>
               <textarea value={headers} onChange={(e) => setHeaders(e.target.value)}
                 rows={3} placeholder={"X-Api-Key: your-key\nX-Custom: value"}
                 className={INPUT_CLS + ' resize-y'} />
@@ -297,12 +297,12 @@ function AddConnectionForm({ onCreated }: { onCreated: () => void }) {
       <div className="flex gap-2">
         <button type="submit" disabled={busy || !name || (isStdio ? !command : !url)}
           className="h-8 px-4 rounded bg-[var(--color-accent)] text-[var(--color-bg)]
-            disabled:opacity-50 font-mono text-[11px] uppercase tracking-[0.15em]">
+            disabled:opacity-50 text-[12px] font-medium">
           {busy ? '添加中…' : '添加'}
         </button>
         <button type="button" onClick={onCreated}
           className="h-8 px-3 rounded border border-[var(--color-border-strong)]
-            text-[var(--color-text-muted)] font-mono text-[11px]">取消</button>
+            text-[var(--color-text-muted)] text-[12px]">取消</button>
       </div>
     </form>
   )

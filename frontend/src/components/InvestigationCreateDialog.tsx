@@ -89,8 +89,8 @@ export function InvestigationCreateDialog({ open, onClose, onCreated }: Props) {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 h-9 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
-          <div className="flex items-center gap-2 font-mono text-[12px] uppercase tracking-[0.22em]">
-            <span className="text-[var(--color-accent)]">new</span>
+          <div className="flex items-center gap-2 font-medium text-[12px]">
+            <span className="text-[var(--color-accent)]">新建</span>
             <span className="text-[var(--color-text-dim)] opacity-60">/</span>
             <span className="text-[var(--color-text-dim)]">investigation</span>
           </div>
@@ -111,7 +111,7 @@ export function InvestigationCreateDialog({ open, onClose, onCreated }: Props) {
         {/* Body */}
         <div className="px-5 pt-5 pb-4 space-y-4">
           <div>
-            <label className="block text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono mb-1.5">
+            <label className="block text-[11.5px] text-[var(--color-text-dim)] font-medium mb-1.5">
               标题 *
             </label>
             <input
@@ -125,7 +125,7 @@ export function InvestigationCreateDialog({ open, onClose, onCreated }: Props) {
             />
           </div>
           <div>
-            <label className="block text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono mb-1.5">
+            <label className="block text-[11.5px] text-[var(--color-text-dim)] font-medium mb-1.5">
               描述
             </label>
             <textarea
@@ -140,7 +140,7 @@ export function InvestigationCreateDialog({ open, onClose, onCreated }: Props) {
           </div>
           <div className="flex items-start gap-4">
             <div className="w-32 shrink-0">
-              <label className="block text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono mb-1.5">
+              <label className="block text-[11.5px] text-[var(--color-text-dim)] font-medium mb-1.5">
                 严重度
               </label>
               <select
@@ -156,7 +156,7 @@ export function InvestigationCreateDialog({ open, onClose, onCreated }: Props) {
               </select>
             </div>
             <div className="flex-1 min-w-0">
-              <label className="block text-[11.5px] uppercase tracking-[0.2em] text-[var(--color-text-dim)] font-mono mb-1.5">
+              <label className="block text-[11.5px] text-[var(--color-text-dim)] font-medium mb-1.5">
                 相关服务（逗号或空格分隔）
               </label>
               <input
@@ -182,7 +182,7 @@ export function InvestigationCreateDialog({ open, onClose, onCreated }: Props) {
             className="px-3 h-8 rounded border border-[var(--color-border-strong)]
               bg-transparent text-[var(--color-text)]
               hover:bg-[var(--color-surface-2)]
-              font-mono text-[11px] uppercase tracking-[0.15em] transition-colors"
+              text-[11px] transition-colors"
           >
             取消
           </button>
@@ -193,7 +193,7 @@ export function InvestigationCreateDialog({ open, onClose, onCreated }: Props) {
               bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]
               disabled:bg-[var(--color-surface-3)] disabled:text-[var(--color-text-dim)]
               disabled:cursor-not-allowed
-              font-mono text-[11px] uppercase tracking-[0.15em] transition-colors"
+              text-[11px] transition-colors"
           >
             {busy ? '创建中…' : '创建'}
           </button>

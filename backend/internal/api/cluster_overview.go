@@ -347,12 +347,12 @@ func (d *Deps) handleClusterOverview(c *gin.Context) {
 		sort.Slice(podUsage, func(i, j int) bool { return podUsage[i].CPU > podUsage[j].CPU })
 		n := 10
 		if len(podUsage) < n { n = len(podUsage) }
-		resp.TopPodsCPU = podUsage[:n]
+		resp.TopPodsCPU = append([]podResource{}, podUsage[:n]...)
 
 		sort.Slice(podUsage, func(i, j int) bool { return podUsage[i].Memory > podUsage[j].Memory })
 		n = 10
 		if len(podUsage) < n { n = len(podUsage) }
-		resp.TopPodsMemory = podUsage[:n]
+		resp.TopPodsMemory = append([]podResource{}, podUsage[:n]...)
 	}
 
 	// 工作负载健康

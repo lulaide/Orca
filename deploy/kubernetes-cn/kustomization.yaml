@@ -9,5 +9,7 @@ resources:
 images:
   - name: orca:latest
     newName: registry.cn-hangzhou.aliyuncs.com/orca-ops-agent/orca
-    newTag: "0.2.0"
-  # postgres 直接用 Docker Hub 官方镜像，不覆盖
+    newTag: latest
+  - name: postgres:16-alpine
+    newName: registry.cn-hangzhou.aliyuncs.com/orca-ops-agent/postgres
+    newTag: 16-alpine

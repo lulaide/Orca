@@ -48,7 +48,7 @@ export function StatusBadge({ status }: { status: InvestigationStatus }) {
     stale: 'bg-[var(--color-surface-2)] text-[var(--color-text-dim)] border-[var(--color-border)]',
   }
   return (
-    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${cls[status]}`}>
+    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 ${cls[status]}`}>
       {label[status]}
     </span>
   )

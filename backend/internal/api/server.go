@@ -80,6 +80,7 @@ func NewRouter(d *Deps) *gin.Engine {
 		// 系统状态
 		api.GET("/status", d.handleStatus)
 		api.GET("/cluster/metrics", d.handleClusterMetrics)
+		api.GET("/cluster/overview", d.handleClusterOverview)
 
 		// 设置: 站点
 		api.GET("/settings/site", d.handleGetSiteSettings)

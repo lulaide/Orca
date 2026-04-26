@@ -128,6 +128,13 @@ func (m *Manager) Clientset() *kubernetes.Clientset {
 	return m.clientset
 }
 
+// RestConfig 返回当前的 rest.Config（用于创建 metrics 等扩展客户端）。
+func (m *Manager) RestConfig() *rest.Config {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.config
+}
+
 // Status 返回当前状态快照。
 func (m *Manager) Status() Status {
 	m.mu.RLock()

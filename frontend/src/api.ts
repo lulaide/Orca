@@ -247,6 +247,75 @@ export async function getClusterMetrics(): Promise<ClusterMetrics> {
   return res.json()
 }
 
+// ---- Cluster Overview (enhanced dashboard) ----
+
+export interface NodeDetail {
+  name: string
+  cpu_usage: number | null
+  cpu_allocatable: number
+  cpu_capacity: number
+  mem_usage: number | null
+  mem_allocatable: number
+  mem_capacity: number
+  pod_count: number
+  pod_capacity: number
+  ready: boolean
+  conditions: string[]
+}
+
+export interface NamespaceSummary {
+  name: string
+  pod_count: number
+  cpu_requests: number
+  cpu_limits: number
+  mem_requests: number
+  mem_limits: number
+}
+
+export interface PodResource {
+  name: string
+  namespace: string
+  cpu: number
+  memory: number
+}
+
+export interface WorkloadCounts {
+  total: number
+  ready: number
+  degraded: number
+  unavailable: number
+}
+
+export interface WorkloadHealth {
+  deployments: WorkloadCounts
+  statefulsets: WorkloadCounts
+  daemonsets: WorkloadCounts
+}
+
+export interface ProblemPod {
+  name: string
+  namespace: string
+  reason: string
+  restarts: number
+  message: string
+  age: string
+}
+
+export interface ClusterOverview extends ClusterMetrics {
+  node_details: NodeDetail[]
+  namespaces: NamespaceSummary[]
+  top_pods_cpu: PodResource[]
+  top_pods_memory: PodResource[]
+  workloads: WorkloadHealth
+  problem_pods: ProblemPod[]
+}
+
+export async function getClusterOverview(): Promise<ClusterOverview> {
+  const res = await authFetch('/api/cluster/overview')
+  if (!res.ok) throw new Error(`cluster/overview: ${res.status}`)
+  return res.json()
+}
+
 // ---- Conversations ----
 
 export interface Conversation {

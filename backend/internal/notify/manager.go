@@ -1,10 +1,16 @@
 package notify
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 
+	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
+	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 	"gorm.io/gorm"
 
 	"github.com/lulaide/orca/internal/core"
@@ -19,11 +25,16 @@ type LarkConfig struct {
 	ChatID    string `json:"chat_id"`
 }
 
-// Manager 管理通知发送。
+// Manager 管理通知发送 + 机器人交互。
 type Manager struct {
 	db   *gorm.DB
 	lark *LarkNotifier
 	cfg  LarkConfig
+	bot  *BotHandler
+
+	// WebSocket 长连接
+	wsCancel context.CancelFunc
+	wsMu     sync.Mutex
 }
 
 // NewManager 创建通知管理器并从 DB 加载配置。
@@ -33,17 +44,119 @@ func NewManager(gormDB *gorm.DB) *Manager {
 	return m
 }
 
-// Reload 从 settings 表重新加载配置。
+// Reload 从 settings 表重新加载配置，并重启 Bot 连接。
 func (m *Manager) Reload() {
+	m.StopBot()
+
 	var cfg LarkConfig
 	if found, _ := db.LoadSetting(m.db, "notification_lark", &cfg); found && cfg.Enabled {
 		m.cfg = cfg
 		m.lark = NewLarkNotifier(cfg.AppID, cfg.AppSecret, cfg.ChatID)
+		m.bot = NewBotHandler(m.db, m.lark)
 		log.Printf("Notify: lark enabled (chat_id=%s)", cfg.ChatID)
+		m.StartBot()
 	} else {
 		m.cfg = LarkConfig{}
 		m.lark = nil
+		m.bot = nil
 	}
+}
+
+// StartBot 启动飞书 WebSocket 长连接接收消息。
+func (m *Manager) StartBot() {
+	m.wsMu.Lock()
+	defer m.wsMu.Unlock()
+
+	if m.cfg.AppID == "" || m.cfg.AppSecret == "" || m.bot == nil {
+		return
+	}
+
+	// 创建事件分发器
+	handler := dispatcher.NewEventDispatcher("", "").
+		OnP2MessageReceiveV1(func(ctx context.Context, event *larkim.P2MessageReceiveV1) error {
+			return m.handleMessageEvent(event)
+		})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	m.wsCancel = cancel
+
+	wsClient := larkws.NewClient(m.cfg.AppID, m.cfg.AppSecret,
+		larkws.WithEventHandler(handler),
+		larkws.WithAutoReconnect(true),
+	)
+
+	go func() {
+		log.Println("Bot: starting WebSocket connection...")
+		if err := wsClient.Start(ctx); err != nil {
+			if ctx.Err() == nil {
+				log.Printf("Bot: WebSocket error: %v", err)
+			}
+		}
+	}()
+}
+
+// StopBot 关闭 WebSocket 连接。
+func (m *Manager) StopBot() {
+	m.wsMu.Lock()
+	defer m.wsMu.Unlock()
+
+	if m.wsCancel != nil {
+		m.wsCancel()
+		m.wsCancel = nil
+		log.Println("Bot: WebSocket connection stopped")
+	}
+}
+
+// handleMessageEvent 处理飞书消息事件。
+func (m *Manager) handleMessageEvent(event *larkim.P2MessageReceiveV1) error {
+	if event == nil || event.Event == nil || event.Event.Message == nil {
+		return nil
+	}
+
+	msg := event.Event.Message
+
+	// 只处理文本消息
+	if msg.MessageType == nil || *msg.MessageType != "text" {
+		return nil
+	}
+
+	chatID := ""
+	if msg.ChatId != nil {
+		chatID = *msg.ChatId
+	}
+	if chatID == "" {
+		return nil
+	}
+
+	// 解析消息内容（JSON 格式 {"text":"xxx"}）
+	text := ""
+	if msg.Content != nil {
+		var content struct {
+			Text string `json:"text"`
+		}
+		if err := json.Unmarshal([]byte(*msg.Content), &content); err == nil {
+			text = content.Text
+		}
+	}
+
+	// 去掉 @机器人 的 mention 文本
+	if msg.Mentions != nil {
+		for _, mention := range msg.Mentions {
+			if mention.Name != nil {
+				text = strings.ReplaceAll(text, "@"+*mention.Name, "")
+			}
+			if mention.Key != nil {
+				text = strings.ReplaceAll(text, *mention.Key, "")
+			}
+		}
+	}
+	text = strings.TrimSpace(text)
+
+	// 交给 BotHandler 处理
+	if m.bot != nil {
+		go m.bot.HandleMessage(text, chatID)
+	}
+	return nil
 }
 
 // NotifyEvent 异步发送事件通知。

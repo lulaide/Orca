@@ -24,8 +24,13 @@ func NewLarkNotifier(appID, appSecret, chatID string) *LarkNotifier {
 	return &LarkNotifier{client: client, chatID: chatID}
 }
 
-// SendCard 发送飞书卡片消息。
+// SendCard 发送飞书卡片消息到默认群。
 func (l *LarkNotifier) SendCard(title, content, color string) error {
+	return l.SendCardToChat(l.chatID, title, content, color)
+}
+
+// SendCardToChat 发送飞书卡片消息到指定群。
+func (l *LarkNotifier) SendCardToChat(chatID, title, content, color string) error {
 	card := larkcard.NewMessageCard().
 		Config(larkcard.NewMessageCardConfig().WideScreenMode(true)).
 		Header(larkcard.NewMessageCardHeader().
@@ -43,7 +48,7 @@ func (l *LarkNotifier) SendCard(title, content, color string) error {
 	req := larkim.NewCreateMessageReqBuilder().
 		ReceiveIdType("chat_id").
 		Body(larkim.NewCreateMessageReqBodyBuilder().
-			ReceiveId(l.chatID).
+			ReceiveId(chatID).
 			MsgType("interactive").
 			Content(string(cardJSON)).
 			Build()).
@@ -52,6 +57,29 @@ func (l *LarkNotifier) SendCard(title, content, color string) error {
 	resp, err := l.client.Im.Message.Create(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("send message: %w", err)
+	}
+	if !resp.Success() {
+		return fmt.Errorf("lark api error %d: %s", resp.Code, resp.Msg)
+	}
+	return nil
+}
+
+// SendTextToChat 发送纯文本消息到指定群。
+func (l *LarkNotifier) SendTextToChat(chatID, text string) error {
+	content, _ := json.Marshal(map[string]string{"text": text})
+
+	req := larkim.NewCreateMessageReqBuilder().
+		ReceiveIdType("chat_id").
+		Body(larkim.NewCreateMessageReqBodyBuilder().
+			ReceiveId(chatID).
+			MsgType("text").
+			Content(string(content)).
+			Build()).
+		Build()
+
+	resp, err := l.client.Im.Message.Create(context.Background(), req)
+	if err != nil {
+		return err
 	}
 	if !resp.Success() {
 		return fmt.Errorf("lark api error %d: %s", resp.Code, resp.Msg)

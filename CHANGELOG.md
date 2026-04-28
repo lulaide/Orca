@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.0](https://github.com/lulaide/Orca/compare/v0.3.0...v0.4.0) (2026-04-28)
+
+
+### Features
+
+* **frontend:** 代码块语法高亮 + 复制按钮 ([3b05e8c](https://github.com/lulaide/Orca/commit/3b05e8c720d02cfe867be4af02883f19c980f246))
+* Skill 系统替换旧知识库 + Mermaid 渲染 ([3ec7d34](https://github.com/lulaide/Orca/commit/3ec7d347b6a7c3b3b15b1610eb1a1e60a728f791))
+* 专业 Dashboard + 飞书机器人交互命令 ([b74fc9c](https://github.com/lulaide/Orca/commit/b74fc9cb92ab8e98db373c4cd1759ef1ee787786))
+* 对话用户隔离 + 类型隔离 + Fork 继续对话 ([2555d11](https://github.com/lulaide/Orca/commit/2555d1141ac710e1d1ebc5e6d0004c0e3cbf2799))
+
+
+### Bug Fixes
+
+* **dashboard:** Top 10 CPU 排序被内存排序覆盖 ([16954c9](https://github.com/lulaide/Orca/commit/16954c99f0754b8e3476969265d48b31539b9d2f))
+* **deploy:** cn 版镜像改 latest + postgres 用国内源 ([d5e58fb](https://github.com/lulaide/Orca/commit/d5e58fb663358399e87b4e8b2e180c1984f38f36))
+* **fork:** 保留原始消息时间 + 移除 history 裁剪 ([1a564e8](https://github.com/lulaide/Orca/commit/1a564e8577375e3c9e7f6d3ac892a9060cb636e1))
+* **frontend:** StatusBadge 加 shrink-0 防止换行 ([e6b3625](https://github.com/lulaide/Orca/commit/e6b36253d05fc9071f9b7b52d5aeaeae1d72f656))
+
 ## [0.3.0](https://github.com/lulaide/Orca/compare/v0.2.0...v0.3.0) (2026-04-23)
 
 

@@ -40,7 +40,7 @@ Agent Core
 ├── 事件路由器 ← 接收所有触发源的事件，分类分发
 ├── 调查管理器 ← 管理 Investigation 会话状态和对话历史
 ├── LLM 推理引擎 ← Agentic Loop + Function Calling，多轮工具调用
-└── 知识系统 ← 结构化上下文 + 记忆 + RAG + 外部文档 MCP
+└── Skill 系统 ← Agent 渐进式记忆（按服务组织，Level 1/2/3 披露）
         │
         ├── 触发插件（输入）
         │   ├── UptimeKuma Webhook
@@ -92,26 +92,32 @@ resolved 时 LLM 自动填充 root_cause + solution,存入记忆供后续检索�
 
 定时触发的无症状 Investigation。不写检查规则，写自然语言 prompt，LLM 自主决定调用什么工具、怎么判断。配置是 YAML：name + cron schedule + prompt + severity_threshold。结果是结构化 JSON：status(healthy/warning/critical) + findings[] + summary。healthy 静默记日志，warning/critical 生成 Event。
 
-### Skill（技能）
+### Skill（技能系统）
 
-对工具能力的封装。Plugin 是"输入"（什么触发 Agent），Skill 是"能力"（Agent 能做什么）。每个 Skill 提供一组 Tools 给 LLM 的 Function Calling 使用。内置 Skills：kubernetes / network-diag / cicd / certificates / knowledge。用户可通过 MCP 接入扩展。
+Agent 的可进化记忆单元，遵循 Anthropic Agent Skills 的渐进式披露设计。每个 Skill 代表 Agent 对一个服务/组件的全部认知。
+
+**渐进式披露三层：**
+- **Level 1**（~80 tokens/skill）：name + description，启动时自动注入所有 Agent 的 system prompt
+- **Level 2**：SKILL.md body（<5000 tokens），Agent 调用 `read_skill(name)` 按需加载
+- **Level 3**：references（架构图、历史事件等），Agent 调用 `read_skill_ref(name, ref)` 深度加载
+
+**进化循环：**
+- Knowledge Agent 扫描集群 → 创建/更新 Skill（write_skill）
+- Analyst Agent 排查问题 → 读取 Skill（read_skill）→ 按 playbook 排查
+- Investigation resolved → Agent 更新 Skill（update_skill_section）→ 积累经验
+- 下次同类问题 → Agent 读到新经验 → 更快解决
+
+**数据模型：** skills 表（name PK, description, content, references JSONB, metadata JSONB）
+
+**工具：**
+- 所有 Agent：read_skill / read_skill_ref / update_skill_section
+- Knowledge Agent：write_skill / write_skill_ref / delete_skill
 
 ### Tool Layer（工具层）
 
-三层：
-1. 原生 SDK（client-go）：K8s 核心操作，安全可控。只读操作随时执行，写操作需用户确认。
-2. 受限 Bash：灵活诊断命令，必须通过白名单校验。允许 curl/dig/ping/gh 等，禁止 rm/sudo/kubectl delete 等。
-3. MCP 客户端：外部系统扩展，用户在 Web 配置连接。
-
-### Knowledge System（知识系统）
-
-四层：
-1. 结构化上下文 **(Phase 1)**：services 表，自动采集集群拓扑（namespace→deployment→pod→image→ingress→域名） + 人工补充（description/owner/repo/notes）。自动采集不覆盖人工字段。精确查询，每次推理注入。
-2. 记忆 **(Phase 2)**：Investigation resolved 时 LLM 自动总结，生成 embedding 存入 knowledge 表。新事件来时相似度检索 top 3 注入 context。团队共享。
-3. RAG **(Phase 2)**：用户上传 Markdown Runbook，切片 + embedding 存入 knowledge 表。LLM 排查时检索相关段落。
-4. 外部文档 MCP **(Phase 2)**：Confluence/Notion 等，不存本地，LLM 按需调用。
-
-Embedding 用 all-MiniLM-L6-v2 本地推理，检索用 pgvector 近似最近邻。**MVP 阶段知识系统只有第 1 层——其余三层统一在 Phase 2 落地，届时才启用 pgvector 扩展。**
+两层：
+1. 原生 SDK（client-go + k8s.io/metrics）：K8s 只读诊断（get_pods / get_pod_logs / describe_resource / get_events / get_node_status）
+2. MCP 客户端：外部系统扩展，用户在 Web 配置连接（Cloudflare / FOFA 等）
 
 ---
 
@@ -464,26 +470,28 @@ LLM 决定执行写操作（如 delete pod）时，不直接执行，而是：1)
 
 目标：跑通"告警/请求 → 自动排查 → 团队看到结论"的核心链路。
 
-1. **Agent Core**：Event + Investigation + Event Router
-2. **LLM Engine**：OpenAI-compatible 调用 + Agentic Loop（最多 10 轮）
-3. **Kubernetes Skill**：`get_pods` / `get_pod_logs` / `describe_resource` / `get_events` / `get_node_status`（只读）
-4. **Trigger**：UptimeKuma Webhook + 用户请求（POST `/api/chat`）
-5. **Patrol**：`cluster-health` 定时巡检（硬编码 prompt，用于验证链路）
-6. **Knowledge**：services 表自动采集 + Web 编辑（不做记忆/RAG，不启用 pgvector）
-7. **IM Bot**：群发事件通知 + reply 关联对话
-8. **Web 前端**：Dashboard + Events 列表 + Chat 对话页（React）
-9. **认证**：对接内部 SSO
-10. **REST API + PostgreSQL**（`schema.sql` 启动时初始化）+ WebSocket 推送
-11. **部署清单**：Kubernetes Deployment + ServiceAccount + RBAC
+1. **Agent Core**：Event + Investigation + Event Router + 多轮 Agentic Loop
+2. **LLM Engine**：OpenAI / Anthropic 兼容，Function Calling，SSE 流式输出
+3. **K8s 工具**：get_pods / get_pod_logs / describe_resource / get_events / get_node_status（只读）+ k8s.io/metrics
+4. **Skill 系统**：渐进式披露记忆，Knowledge Agent 扫描生成，排查后自动更新经验
+5. **触发器**：UptimeKuma / AlertManager / Grafana / 通用 Webhook
+6. **飞书机器人**：事件/调查通知推送 + 交互命令（WebSocket 长连接）
+7. **专业 Dashboard**：节点状态 / 工作负载 / 异常 Pod / 命名空间资源 / Top 10
+8. **Web 前端**：Chat 对话 / Events / Investigation / Skill 浏览器 + Mermaid 图 / 代码高亮
+9. **认证**：JWT + OAuth/OIDC（Authentik 等）
+10. **MCP Client**：外接 MCP Server（stdio + SSE + OAuth 2.1 PKCE）
+11. **零配置部署**：kubectl apply -k 一键安装，Web 内完成所有配置
+12. **单镜像**：go:embed 前端静态文件，移动端适配
 
-### Phase 2 — 扩展能力
+### Phase 2 — Agent Harness
 
-- Trigger 扩展：AlertManager / Grafana / CI/CD Webhook / 通用 Webhook
-- Knowledge：记忆 + RAG + **引入 pgvector**（Investigation resolved 自动总结；Markdown Runbook 上传切片）
+- 多 Agent 协调：Supervisor Agent（分诊）+ Analysis Agent（排查）
+- 工具执行审计（actions 表）
+- 写操作权限 + 人工审批流（request_human_input + 飞书回复恢复）
 - 受限 Bash 工具（白名单 + 超时 + 审计）
-- MCP Server（对外暴露 Tools）+ MCP Client（对接外部系统）
-- Web：Knowledge 管理 + Patrol 配置 + Settings
-- 写操作权限 + 审批流（低风险模块负责人确认，高风险需 admin）
+- 定时巡检（Patrol）：自然语言 prompt + cron 调度 + 自动创建 Investigation
+- MCP Server（对外暴露 Agent 能力）
+- Token 追踪 + 成本控制
 
 ### Phase 3 — 团队协作
 

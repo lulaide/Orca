@@ -1,6 +1,18 @@
+<div align="center">
+
 # Orca
 
 > 事件驱动的 AI 运维 Agent，为 Kubernetes 集群提供 7×24 自动值守、智能排障和团队协作。
+
+<p>
+  <img src="https://img.shields.io/badge/Go-1.26.1-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go 1.26.1">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React 19">
+  <img src="https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white" alt="Vite 8">
+  <img src="https://img.shields.io/badge/Kubernetes-native-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Kubernetes native">
+  <a href="https://deepwiki.com/lulaide/Orca"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
+</p>
+
+</div>
 
 ---
 

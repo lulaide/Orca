@@ -45,6 +45,7 @@ func main() {
 		&core.PluginConfig{},
 		&core.MCPConnection{},
 		&core.KnowledgePage{},
+		&core.Skill{},
 		&core.User{},
 	); err != nil {
 		log.Fatalf("Migration: %v", err)
@@ -97,7 +98,8 @@ func main() {
 	reg := tools.NewRegistry()
 	tools.RegisterKubernetesTools(reg)
 	tools.RegisterInvestigationTools(reg)
-	tools.RegisterKnowledgeTools(reg)
+	tools.RegisterSkillTools(reg)
+	tools.RegisterSkillWriteTools(reg)
 	log.Printf("Tools: registered %v", reg.Names())
 
 	// 6.5 MCP Client Manager（外接 MCP Server 的工具）

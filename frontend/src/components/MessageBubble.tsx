@@ -22,6 +22,7 @@ function getHighlighter(): Promise<Highlighter> {
   }
   return highlighterPromise
 }
+import { MermaidBlock } from './MermaidBlock'
 import { ToolCallCard } from './ToolCallCard'
 import { InvestigationRefCard } from './InvestigationRefCard'
 import { InvestigationReferenceCard } from './InvestigationReferenceCard'
@@ -173,6 +174,9 @@ const markdownComponents: Components = {
       const child = children as React.ReactElement<{ className?: string }>
       const match = /language-(\w+)/.exec(child.props.className || '')
       if (match) lang = match[1]
+    }
+    if (lang === 'mermaid') {
+      return <MermaidBlock code={text} />
     }
     if (lang) {
       // shiki 输出自带 pre，外层改用 div

@@ -723,6 +723,61 @@ export function streamScanProgress(handlers: {
   return { abort: () => ctrl.abort() }
 }
 
+// ---- Skills ----
+
+export interface Skill {
+  name: string
+  description: string
+  content: string
+  references: Record<string, string>
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export async function listSkills(): Promise<Skill[]> {
+  const res = await authFetch('/api/skills')
+  if (!res.ok) throw new Error(`skills: ${res.status}`)
+  return res.json()
+}
+
+export async function getSkill(name: string): Promise<Skill> {
+  const res = await authFetch(`/api/skills/${name}`)
+  if (!res.ok) throw new Error(`skill: ${res.status}`)
+  return res.json()
+}
+
+export async function updateSkill(name: string, patch: { description?: string; content?: string }): Promise<Skill> {
+  const res = await authFetch(`/api/skills/${name}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) throw new Error(`update skill: ${res.status}`)
+  return res.json()
+}
+
+export async function deleteSkill(name: string): Promise<void> {
+  const res = await authFetch(`/api/skills/${name}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`delete skill: ${res.status}`)
+}
+
+export async function getSkillRef(name: string, ref: string): Promise<string> {
+  const res = await authFetch(`/api/skills/${name}/refs/${ref}`)
+  if (!res.ok) throw new Error(`skill ref: ${res.status}`)
+  const data = await res.json()
+  return data.content
+}
+
+export async function updateSkillRef(name: string, ref: string, content: string): Promise<void> {
+  const res = await authFetch(`/api/skills/${name}/refs/${ref}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  })
+  if (!res.ok) throw new Error(`update skill ref: ${res.status}`)
+}
+
 // ---- MCP Connections ----
 
 export type MCPTransport = 'stdio' | 'sse'

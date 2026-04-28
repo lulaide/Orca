@@ -4,11 +4,11 @@ import {
   deleteConversation,
   listEvents,
   listInvestigations,
-  listKnowledgePages,
+  listSkills,
   type Conversation,
   type OrcaEvent,
   type Investigation,
-  type KnowledgePage,
+  type Skill,
   type InvestigationView,
 } from '../api'
 import { navigate } from '../navigate'
@@ -37,7 +37,7 @@ export function SecondaryPanel(props: Props) {
       {props.module === 'chat' && <ChatList {...props} />}
       {props.module === 'events' && <EventsList {...props} />}
       {props.module === 'investigations' && <InvestigationsList {...props} />}
-      {props.module === 'knowledge' && <KnowledgeTree {...props} />}
+      {props.module === 'knowledge' && <SkillList {...props} />}
     </aside>
   )
 }
@@ -237,75 +237,36 @@ function InvestigationsList({ refreshToken, activeInvestigationId, investigation
   )
 }
 
-// ======================== Knowledge 文档目录 ========================
+// ======================== Skill 技能列表 ========================
 
-interface TreeNode {
-  page: KnowledgePage
-  children: TreeNode[]
-}
-
-function buildTree(pages: KnowledgePage[]): TreeNode[] {
-  const map = new Map<string, TreeNode>()
-  for (const p of pages) map.set(p.slug, { page: p, children: [] })
-  const roots: TreeNode[] = []
-  for (const p of pages) {
-    const node = map.get(p.slug)!
-    if (p.parent_slug && map.has(p.parent_slug)) {
-      map.get(p.parent_slug)!.children.push(node)
-    } else {
-      roots.push(node)
-    }
-  }
-  return roots
-}
-
-function KnowledgeTree({ refreshToken, activeKnowledgeSlug, onSelectKnowledgeSlug }: Props) {
-  const [pages, setPages] = useState<KnowledgePage[]>([])
+function SkillList({ refreshToken, activeKnowledgeSlug, onSelectKnowledgeSlug }: Props) {
+  const [skills, setSkills] = useState<Skill[]>([])
 
   useEffect(() => {
-    listKnowledgePages().then(setPages).catch(console.error)
+    listSkills().then(setSkills).catch(console.error)
   }, [refreshToken])
-
-  const tree = buildTree(pages)
 
   return (
     <>
-      <PanelHeader title="知识库" action={{ label: '扫描', onClick: () => navigate('/knowledge?scan=1') }} />
+      <PanelHeader title="技能库" />
       <div className="flex-1 overflow-y-auto px-2 py-1">
-        {pages.length === 0 && <EmptyHint>尚未生成</EmptyHint>}
-        {tree.map((node) => (
-          <KnowledgeNavNode key={node.page.slug} node={node} depth={0}
-            selected={activeKnowledgeSlug} onSelect={onSelectKnowledgeSlug} />
+        {skills.length === 0 && <EmptyHint>尚未生成</EmptyHint>}
+        {skills.map((s) => (
+          <button
+            key={s.name}
+            type="button"
+            onClick={() => onSelectKnowledgeSlug(s.name)}
+            className={`w-full flex flex-col gap-0.5 px-3 py-2 rounded text-left text-[12px] transition-colors mb-0.5
+              ${activeKnowledgeSlug === s.name
+                ? 'bg-[var(--color-surface-2)] text-[var(--color-text)]'
+                : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]'}`}
+          >
+            <span className="font-medium truncate">{s.name}</span>
+            <span className="text-[11px] text-[var(--color-text-dim)] truncate">{s.description?.slice(0, 50)}</span>
+          </button>
         ))}
       </div>
     </>
-  )
-}
-
-function KnowledgeNavNode({ node, depth, selected, onSelect }: {
-  node: TreeNode; depth: number; selected: string | null; onSelect: (slug: string) => void
-}) {
-  const [collapsed, setCollapsed] = useState(false)
-  const active = node.page.slug === selected
-  const has = node.children.length > 0
-
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={() => { onSelect(node.page.slug); if (has && active) setCollapsed(!collapsed) }}
-        className={`w-full flex items-center gap-1 px-2 py-1 rounded text-left text-[12px] transition-colors
-          ${active ? 'bg-[var(--color-surface-2)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]'}`}
-        style={{ paddingLeft: `${6 + depth * 12}px` }}
-      >
-        {has && <span className="text-[9px] w-3 shrink-0 text-center" onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed) }}>{collapsed ? '▸' : '▾'}</span>}
-        {!has && <span className="w-3 shrink-0" />}
-        <span className="truncate">{node.page.title}</span>
-      </button>
-      {!collapsed && has && node.children.map((ch) => (
-        <KnowledgeNavNode key={ch.page.slug} node={ch} depth={depth + 1} selected={selected} onSelect={onSelect} />
-      ))}
-    </div>
   )
 }
 

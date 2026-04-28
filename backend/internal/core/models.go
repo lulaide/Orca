@@ -130,6 +130,20 @@ type KnowledgePage struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
+// Skill 是 Agent 对一个服务/组件的结构化认知单元。
+// 遵循渐进式披露：Level 1 = name+description（注入 system prompt），
+// Level 2 = content（Agent 按需读取），Level 3 = references（深度参考）。
+// Agent 排查后可通过 update_skill_section 追加经验，实现持续学习。
+type Skill struct {
+	Name        string         `gorm:"primaryKey" json:"name"`         // 如 "authentik", "cluster-overview"
+	Description string         `json:"description"`                    // Level 1: 一句话，注入所有 Agent
+	Content     string         `gorm:"type:text" json:"content"`       // Level 2: SKILL.md body
+	References  datatypes.JSON `gorm:"type:jsonb" json:"references"`   // Level 3: {"architecture.md": "...", ...}
+	Metadata    datatypes.JSON `gorm:"type:jsonb" json:"metadata"`     // {namespace, type, dependencies, ...}
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+}
+
 // MCPConnection 是一个外部 MCP Server 的连接配置。
 // Orca 作为 MCP Client 连接到这些 Server，发现并注册它们提供的工具，
 // 让 Agent 在推理时能调用外部能力（如 Cloudflare DNS、Grafana 查询等）。

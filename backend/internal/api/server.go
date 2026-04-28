@@ -138,12 +138,18 @@ func NewRouter(d *Deps) *gin.Engine {
 		api.POST("/plugins/:name/regenerate-token", d.handleRegeneratePluginToken)
 		api.GET("/plugins/:name/token", d.handleGetPluginToken)
 
-		// 知识库
+		// 知识库扫描
 		api.POST("/knowledge/scan", d.handleScanCluster)
 		api.GET("/knowledge/scan/stream", d.handleScanStream)
-		api.GET("/knowledge/pages", d.handleListKnowledgePages)
-		api.GET("/knowledge/pages/*slug", d.handleGetKnowledgePage)
-		api.PATCH("/knowledge/pages/*slug", d.handleUpdateKnowledgePage)
+
+		// 技能库
+		api.GET("/skills", d.handleListSkills)
+		api.GET("/skills/:name", d.handleGetSkill)
+		api.PATCH("/skills/:name", d.handleUpdateSkill)
+		api.DELETE("/skills/:name", d.handleDeleteSkill)
+		api.GET("/skills/:name/refs/:ref", d.handleGetSkillRef)
+		api.PUT("/skills/:name/refs/:ref", d.handleUpdateSkillRef)
+		api.DELETE("/skills/:name/refs/:ref", d.handleDeleteSkillRef)
 
 		// MCP 连接
 		api.GET("/mcp/connections", d.handleListMCPConnections)

@@ -185,6 +185,12 @@ Event payload:
 
 工具调用参数里的 JSON key、identifier（如 namespace / pod 名）保留原样；仅自然语言字段用中文。
 
+## Skill 技能系统
+
+下方注入了"已知服务技能"列表。排查时先看有没有相关 skill：
+- 有 → 调 read_skill(name) 加载排障手册，按手册排查
+- 没有 → 正常排查
+
 ## 输出约定
 
 你最后那段纯文本回复会作为 Event 的处理摘要入库。保持简短（1–3 句话）：说明你的结论 + 开了几个 Investigation。`,

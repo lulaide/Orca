@@ -261,8 +261,8 @@ function SkillList({ refreshToken, activeKnowledgeSlug, onSelectKnowledgeSlug }:
                 ? 'bg-[var(--color-surface-2)] text-[var(--color-text)]'
                 : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]'}`}
           >
-            <span className="font-medium truncate">{s.name}</span>
-            <span className="text-[11px] text-[var(--color-text-dim)] truncate">{s.description?.slice(0, 50)}</span>
+            <span className="text-[13px] font-semibold truncate">{s.name}</span>
+            <span className="text-[12px] text-[var(--color-text-dim)] truncate">{s.description?.slice(0, 60)}</span>
           </button>
         ))}
       </div>

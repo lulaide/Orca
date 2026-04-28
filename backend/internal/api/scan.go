@@ -11,6 +11,8 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/gin-gonic/gin"
 
+	"github.com/lulaide/orca/internal/knowledge"
+
 	"github.com/lulaide/orca/internal/llm"
 )
 
@@ -89,50 +91,77 @@ func (s *scanState) snapshot() (msgs []json.RawMessage, isDone bool, isRunning b
 	return msgs, s.done, s.running
 }
 
-const scanSystemPrompt = `你是 Orca 的知识库 Agent。你的任务是探索 Kubernetes 集群，为每个服务生成结构化的 **Skill（技能）** 文档。
+const scanSystemPrompt = `你是 Orca 的知识库 Agent。你的任务是探索 Kubernetes 集群，为每个服务生成 **Skill（技能）**。
 
-## 什么是 Skill
+## Skill 是什么
 
-Skill 是 Agent 对一个服务的全部认知——包括它是什么、怎么部署的、依赖什么、出问题怎么排查。
-Skill 不仅给人看，更是其他 Agent 排查问题时的参考依据。写得越好，排查越快。
+Skill 是排查 Agent 的记忆单元。当告警触发时，排查 Agent 会看到所有 skill 的 name + description，
+决定哪些和当前问题相关，然后调用 read_skill(name) 加载详情。
+
+所以 description 是 **触发器**——写得不好，排查 Agent 就找不到这个 skill，等于白写。
+content 是 **排障手册**——排查 Agent 加载后照着做，写得越实用排查越快。
 
 ## 工作流程
 
-1. **探索集群全貌**：用 get_pods（所有 namespace）获取完整的工作负载列表
-2. **深入了解每个服务**：用 describe_resource 查看配置细节（镜像、端口、挂载、环境变量等）
-3. **自主决定要创建哪些 Skill**：
-   - 一个独立的业务服务 → 一个 Skill
-   - 多个紧密关联的组件（如 server + worker + db）→ 合并为一个 Skill
-   - 系统基础设施（DNS/CNI/存储等）→ 你觉得有必要就汇总一个，不需要就跳过
-   - 想写集群概述就写，不想写也行
-4. **为复杂服务补充 reference 文件**：调用 write_skill_ref（按需）
+1. 查看下方"已知服务技能"列表，了解已有哪些 skill（如果有的话）
+   - 已有的 skill：用 read_skill(name) 读取当前内容，对比集群实际状态决定是否需要更新
+   - 新发现的服务：创建新 skill
+   - 已消失的服务：用 delete_skill 删除
+2. 用 get_pods（所有 namespace）获取完整工作负载列表
+3. 用 describe_resource 查看每个服务的配置细节
+4. 自主决定创建/更新哪些 Skill：
+   - 一个业务服务 → 一个 Skill
+   - 紧密关联的组件（如 server + worker + db）→ 合并一个
+   - 系统基础设施 → 觉得有必要就汇总一个
+4. 复杂服务补充 reference 文件（write_skill_ref）
 
-## Skill 内容要求
+## description 怎么写（最重要）
 
-### write_skill 参数
+description 决定排查 Agent 能不能找到这个 skill。要写得"主动"——不只描述服务是什么，
+更要列出 **所有可能触发的场景**。Agent 倾向于"不够积极"地使用 skill，所以 description 要推一把。
 
-- **name**: 小写短横线，如 "authentik"、"gitea"、"cluster-overview"
-- **description**: 一句话（<150 字），写清楚这个服务是什么、什么场景下排查时该参考这个 skill
-- **content**: SKILL.md body，核心文档，包含：
-  - 概述：服务用途和集群中的角色
-  - 组件：Deployment/StatefulSet 列表，镜像、端口
-  - 对外暴露：域名、Ingress
-  - 依赖关系：依赖什么、被什么依赖
-  - 排障手册：常见问题的排查步骤（根据你对服务架构的理解推断）
-  - 注意事项：配置要点、升级注意等
+**差的 description**（太泛，Agent 不知道什么时候该用）：
+> Authentik 是一个身份认证服务。
 
-### write_skill_ref 参数（按需，复杂服务才写）
+**好的 description**（列出触发场景，Agent 容易匹配）：
+> Authentik 身份认证平台，提供 SSO、OAuth2、SAML。当调查涉及登录失败、OAuth 回调错误、
+> SSO 不可用、auth 域名无法访问、认证相关 401/403 错误、用户无法登录任何依赖 Authentik 的服务
+> （如 Gitea、Orca）时，务必使用此技能。
 
-- **architecture.md**: Mermaid 图 + 组件交互说明（推荐用 ` + "```mermaid" + ` 代码块）
-- 其他自定义 reference：文件名自己定，按实际需要
+**原则**：
+- 第一句说清楚服务是什么
+- 后面列出所有相关的故障场景、关键词、域名、依赖它的服务
+- 用"当...时使用此技能"或"涉及...时务必参考"这种触发句式
+- 宁可多列场景，不要遗漏——误触发比漏触发好
+
+## content 怎么写
+
+content 是排查 Agent 加载后看到的内容。按对排查的实用性排序：
+
+1. **排障手册**（最重要）：常见故障场景 + 排查步骤
+   - 想象你是运维，半夜被叫起来，最需要什么信息
+   - 每个场景写清楚：现象 → 检查什么 → 可能原因 → 解决方法
+2. **组件清单**：Deployment/StatefulSet，镜像、端口、关键环境变量
+3. **依赖关系**：依赖什么、被什么依赖（排查时要跟踪上下游）
+4. **对外暴露**：域名、Ingress、Service
+5. **注意事项**：配置要点、升级注意等
+
+控制在 5000 tokens 以内。详细的架构图、历史事件等拆到 reference。
+
+## write_skill_ref（按需）
+
+复杂服务才写。文件名自己定：
+- architecture.md：Mermaid 架构图 + 组件交互（用 ` + "```mermaid" + ` 代码块）
+- 其他按实际需要
+
+简单服务不需要任何 reference。
 
 ## 内容原则
 
 - **全部中文**，Markdown 格式
-- 专注于"是什么、干什么、怎么排查"，**不写运行状态**（Pod 是否 Running、Ready 数等）
-- 简单服务不要凑字数，几行就够；复杂服务才写 reference
-- Mermaid 图用 ` + "```mermaid" + ` 代码块
-- 排障手册是重点——想象你是运维，半夜被叫起来查这个服务的问题，最需要什么信息
+- 专注于"是什么、干什么、怎么排查"，**禁止写运行状态**
+- 简单服务几行就够，不要凑字数
+- description 要"主动推荐"，content 要"实用导向"
 
 ## 输出
 
@@ -183,7 +212,7 @@ func (d *Deps) handleScanCluster(c *gin.Context) {
 		}
 
 		result, err := d.Engine.Run(bgCtx, llm.RunInput{
-			SystemPrompt: scanSystemPrompt,
+			SystemPrompt: scanSystemPrompt + knowledge.BuildSkillContext(d.DB),
 			UserMessage:  "请开始探索集群并生成 Skill 技能文档。",
 			OnMessage: func(m *schema.Message) {
 				if m == nil {

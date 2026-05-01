@@ -61,7 +61,7 @@ func handleReadSkill(ctx context.Context, args string) (string, error) {
 		return fmt.Sprintf("未找到技能: %s", p.Name), nil
 	}
 
-	// 提取 reference 文件名列表
+	// 提取 reference + script 文件名列表
 	refs := make(map[string]string)
 	if len(skill.References) > 0 {
 		json.Unmarshal(skill.References, &refs)
@@ -71,16 +71,27 @@ func handleReadSkill(ctx context.Context, args string) (string, error) {
 		refNames = append(refNames, k)
 	}
 
+	scripts := make(map[string]string)
+	if len(skill.Scripts) > 0 {
+		json.Unmarshal(skill.Scripts, &scripts)
+	}
+	scriptNames := make([]string, 0, len(scripts))
+	for k := range scripts {
+		scriptNames = append(scriptNames, k)
+	}
+
 	result := struct {
 		Name        string   `json:"name"`
 		Description string   `json:"description"`
 		Content     string   `json:"content"`
 		RefFiles    []string `json:"reference_files"`
+		ScriptFiles []string `json:"script_files"`
 	}{
 		Name:        skill.Name,
 		Description: skill.Description,
 		Content:     skill.Content,
 		RefFiles:    refNames,
+		ScriptFiles: scriptNames,
 	}
 
 	j, _ := json.Marshal(result)
@@ -92,9 +103,9 @@ func handleReadSkill(ctx context.Context, args string) (string, error) {
 func readSkillRefInfo() *schema.ToolInfo {
 	return &schema.ToolInfo{
 		Name: "read_skill_ref",
-		Desc: `读取技能的某个 reference 文件内容（Level 3 深度参考）。
-比如架构图（architecture.md）、历史事件（incidents.md）等。
-先调用 read_skill 查看有哪些 reference_files 可用。`,
+		Desc: `读取技能的某个 reference 或 script 文件内容（Level 3 深度参考）。
+比如架构图（architecture.md）、历史事件（incidents.md）、脚本（extract.py）等。
+先调用 read_skill 查看有哪些 reference_files 和 script_files 可用。`,
 		ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
 			"name": {
 				Type:     schema.String,
@@ -172,6 +183,12 @@ func handleUpdateSkillSection(ctx context.Context, args string) (string, error) 
 		return "", fmt.Errorf("invalid args: %w", err)
 	}
 
+	// installed 类型的 skill 不允许 Agent 修改
+	skill, _ := core.GetSkill(db, p.Name)
+	if skill != nil && skill.Type == "installed" {
+		return "该技能来自 Marketplace，不允许修改。请创建自定义技能记录你的经验。", nil
+	}
+
 	if err := core.AppendSkillSection(db, p.Name, p.Ref, p.Content); err != nil {
 		return "", err
 	}
@@ -232,9 +249,14 @@ func handleWriteSkill(ctx context.Context, args string) (string, error) {
 		return "", fmt.Errorf("invalid args: %w", err)
 	}
 
-	// 保留已有的 references（不覆盖 incidents 等 Agent 积累的经验）
-	var existingRefs datatypes.JSON
+	// installed 类型不允许 Agent 覆盖
 	existing, _ := core.GetSkill(db, p.Name)
+	if existing != nil && existing.Type == "installed" {
+		return "该技能来自 Marketplace，不允许修改。", nil
+	}
+
+	// 保留已有的 references（不覆盖 Agent 积累的经验）
+	var existingRefs datatypes.JSON
 	if existing != nil && len(existing.References) > 0 {
 		existingRefs = existing.References
 	} else {

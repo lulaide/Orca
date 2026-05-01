@@ -151,6 +151,11 @@ func NewRouter(d *Deps) *gin.Engine {
 		api.PUT("/skills/:name/refs/:ref", d.handleUpdateSkillRef)
 		api.DELETE("/skills/:name/refs/:ref", d.handleDeleteSkillRef)
 
+		// 技能安装
+		api.POST("/skills/scan-repo", d.handleScanRepo)
+		api.POST("/skills/install", d.handleInstallSkills)
+		api.DELETE("/skills/uninstall/:name", d.handleUninstallSkill)
+
 		// MCP 连接
 		api.GET("/mcp/connections", d.handleListMCPConnections)
 		api.POST("/mcp/connections", d.handleCreateMCPConnection)

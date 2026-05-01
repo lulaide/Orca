@@ -38,12 +38,15 @@ func UpsertSkill(db *gorm.DB, s *Skill) error {
 	if s.References == nil {
 		s.References = datatypes.JSON([]byte("{}"))
 	}
+	if s.Scripts == nil {
+		s.Scripts = datatypes.JSON([]byte("{}"))
+	}
 	if s.Metadata == nil {
 		s.Metadata = datatypes.JSON([]byte("{}"))
 	}
 	return db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "name"}},
-		DoUpdates: clause.AssignmentColumns([]string{"description", "content", "references", "metadata", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"type", "source", "description", "content", "references", "scripts", "metadata", "updated_at"}),
 	}).Create(s).Error
 }
 
@@ -83,11 +86,20 @@ func GetSkillRef(db *gorm.DB, name, refName string) (string, error) {
 		json.Unmarshal(skill.References, &refs)
 	}
 
-	content, ok := refs[refName]
-	if !ok {
-		return "", errors.New("reference not found: " + refName)
+	if content, ok := refs[refName]; ok {
+		return content, nil
 	}
-	return content, nil
+
+	// 也查 scripts
+	scripts := make(map[string]string)
+	if len(skill.Scripts) > 0 {
+		json.Unmarshal(skill.Scripts, &scripts)
+	}
+	if content, ok := scripts[refName]; ok {
+		return content, nil
+	}
+
+	return "", errors.New("file not found: " + refName)
 }
 
 // AppendSkillSection 追加内容到某个 reference（用于 incidents 积累）。

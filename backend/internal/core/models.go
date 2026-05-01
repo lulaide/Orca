@@ -136,9 +136,12 @@ type KnowledgePage struct {
 // Agent 排查后可通过 update_skill_section 追加经验，实现持续学习。
 type Skill struct {
 	Name        string         `gorm:"primaryKey" json:"name"`         // 如 "authentik", "cluster-overview"
+	Type        string         `gorm:"default:service" json:"type"`    // "service" | "installed" | "custom"
+	Source      string         `json:"source"`                         // installed: "github:owner/repo/path"
 	Description string         `json:"description"`                    // Level 1: 一句话，注入所有 Agent
 	Content     string         `gorm:"type:text" json:"content"`       // Level 2: SKILL.md body
 	References  datatypes.JSON `gorm:"type:jsonb" json:"references"`   // Level 3: {"architecture.md": "...", ...}
+	Scripts     datatypes.JSON `gorm:"type:jsonb" json:"scripts"`      // {"extract.py": "...", "check.sh": "..."}
 	Metadata    datatypes.JSON `gorm:"type:jsonb" json:"metadata"`     // {namespace, type, dependencies, ...}
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`

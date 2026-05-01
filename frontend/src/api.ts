@@ -727,9 +727,12 @@ export function streamScanProgress(handlers: {
 
 export interface Skill {
   name: string
+  type: string              // "service" | "installed" | "custom"
+  source: string            // installed: "github:owner/repo/path"
   description: string
   content: string
   references: Record<string, string>
+  scripts: Record<string, string>
   metadata: Record<string, unknown>
   created_at: string
   updated_at: string
@@ -776,6 +779,50 @@ export async function updateSkillRef(name: string, ref: string, content: string)
     body: JSON.stringify({ content }),
   })
   if (!res.ok) throw new Error(`update skill ref: ${res.status}`)
+}
+
+// ---- Skill 安装 ----
+
+export interface DiscoveredSkill {
+  name: string
+  description: string
+  content: string
+  frontmatter: Record<string, string>
+  refs: Record<string, string>
+  scripts: Record<string, string>
+  path: string
+  installed: boolean
+}
+
+export interface ScanRepoResult {
+  repo: string
+  count: number
+  skills: DiscoveredSkill[]
+}
+
+export async function scanRepo(repo: string): Promise<ScanRepoResult> {
+  const res = await authFetch('/api/skills/scan-repo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo }),
+  })
+  if (!res.ok) throw new Error(`scan repo: ${res.status}`)
+  return res.json()
+}
+
+export async function installSkillsFromRepo(repo: string, skills: { name: string; path: string }[]): Promise<{ installed: string[]; errors: string[] }> {
+  const res = await authFetch('/api/skills/install', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo, skills }),
+  })
+  if (!res.ok) throw new Error(`install skills: ${res.status}`)
+  return res.json()
+}
+
+export async function uninstallSkill(name: string): Promise<void> {
+  const res = await authFetch(`/api/skills/uninstall/${name}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`uninstall skill: ${res.status}`)
 }
 
 // ---- MCP Connections ----

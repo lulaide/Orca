@@ -5,6 +5,7 @@ import {
   listEvents,
   listInvestigations,
   listSkills,
+  uninstallSkill,
   type Conversation,
   type OrcaEvent,
   type Investigation,
@@ -239,6 +240,36 @@ function InvestigationsList({ refreshToken, activeInvestigationId, investigation
 
 // ======================== Skill 技能列表 ========================
 
+function SkillItem({ skill, active, onSelect, onRefresh }: { skill: Skill; active: boolean; onSelect: () => void; onRefresh?: () => void }) {
+  const icon = skill.type === 'installed' ? '🔌' : skill.type === 'custom' ? '📝' : ''
+  const handleUninstall = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm(`卸载技能 "${skill.name}"？`)) return
+    await uninstallSkill(skill.name)
+    onRefresh?.()
+  }
+  return (
+    <div
+      onClick={onSelect}
+      className={`group w-full flex flex-col gap-0.5 px-3 py-2 rounded text-left transition-colors mb-0.5 cursor-pointer
+        ${active
+          ? 'bg-[var(--color-surface-2)] text-[var(--color-text)]'
+          : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]'}`}
+    >
+      <div className="flex items-center gap-1">
+        <span className="text-[13px] font-semibold truncate flex-1">{icon}{icon ? ' ' : ''}{skill.name}</span>
+        {skill.type === 'installed' && (
+          <button type="button" onClick={handleUninstall}
+            className="px-1.5 py-0.5 rounded text-[11px] text-[var(--color-text-dim)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10
+              opacity-0 group-hover:opacity-100 transition-all shrink-0"
+            title="卸载">卸载</button>
+        )}
+      </div>
+      <span className="text-[12px] text-[var(--color-text-dim)] truncate">{skill.description?.slice(0, 60)}</span>
+    </div>
+  )
+}
+
 function SkillList({ refreshToken, activeKnowledgeSlug, onSelectKnowledgeSlug }: Props) {
   const [skills, setSkills] = useState<Skill[]>([])
 
@@ -246,26 +277,58 @@ function SkillList({ refreshToken, activeKnowledgeSlug, onSelectKnowledgeSlug }:
     listSkills().then(setSkills).catch(console.error)
   }, [refreshToken])
 
+  const serviceSkills = skills.filter((s) => !s.type || s.type === 'service')
+  const installedSkills = skills.filter((s) => s.type === 'installed')
+  const customSkills = skills.filter((s) => s.type === 'custom')
+
   return (
     <>
       <PanelHeader title="技能库" />
       <div className="flex-1 overflow-y-auto px-2 py-1">
         {skills.length === 0 && <EmptyHint>尚未生成</EmptyHint>}
-        {skills.map((s) => (
-          <button
-            key={s.name}
-            type="button"
-            onClick={() => onSelectKnowledgeSlug(s.name)}
-            className={`w-full flex flex-col gap-0.5 px-3 py-2 rounded text-left text-[12px] transition-colors mb-0.5
-              ${activeKnowledgeSlug === s.name
-                ? 'bg-[var(--color-surface-2)] text-[var(--color-text)]'
-                : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]'}`}
-          >
-            <span className="text-[13px] font-semibold truncate">{s.name}</span>
-            <span className="text-[12px] text-[var(--color-text-dim)] truncate">{s.description?.slice(0, 60)}</span>
-          </button>
-        ))}
+
+        {serviceSkills.length > 0 && (
+          <>
+            <div className="text-[11px] font-medium text-[var(--color-text-dim)] px-3 pt-2 pb-1">服务技能 ({serviceSkills.length})</div>
+            {serviceSkills.map((s) => (
+              <SkillItem key={s.name} skill={s} active={activeKnowledgeSlug === s.name} onSelect={() => onSelectKnowledgeSlug(s.name)} onRefresh={() => listSkills().then(setSkills).catch(() => {})} />
+            ))}
+          </>
+        )}
+
+        {installedSkills.length > 0 && (
+          <>
+            <div className="text-[11px] font-medium text-[var(--color-text-dim)] px-3 pt-3 pb-1">已安装 ({installedSkills.length})</div>
+            {installedSkills.map((s) => (
+              <SkillItem key={s.name} skill={s} active={activeKnowledgeSlug === s.name} onSelect={() => onSelectKnowledgeSlug(s.name)} onRefresh={() => listSkills().then(setSkills).catch(() => {})} />
+            ))}
+          </>
+        )}
+
+        {customSkills.length > 0 && (
+          <>
+            <div className="text-[11px] font-medium text-[var(--color-text-dim)] px-3 pt-3 pb-1">自定义 ({customSkills.length})</div>
+            {customSkills.map((s) => (
+              <SkillItem key={s.name} skill={s} active={activeKnowledgeSlug === s.name} onSelect={() => onSelectKnowledgeSlug(s.name)} onRefresh={() => listSkills().then(setSkills).catch(() => {})} />
+            ))}
+          </>
+        )}
       </div>
+      {/* Marketplace 入口 */}
+      <button
+        type="button"
+        onClick={() => onSelectKnowledgeSlug('__marketplace__')}
+        className={`mx-2 mb-2 flex items-center gap-2 px-3 py-2.5 rounded-lg border transition-colors
+          ${activeKnowledgeSlug === '__marketplace__'
+            ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]'
+            : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]'}`}
+      >
+        <span className="text-[16px]">＋</span>
+        <div className="text-left">
+          <div className="text-[13px] font-semibold">安装技能</div>
+          <div className="text-[11px] opacity-70">从 GitHub 仓库安装</div>
+        </div>
+      </button>
     </>
   )
 }

@@ -60,9 +60,32 @@ export function UserMessage({ message }: { message: ChatMessage }) {
 interface AssistantTurnProps {
   messages: ChatMessage[]
   toolOutputs: Record<string, string>
+  onRegenerate?: () => void
+  isLastTurn?: boolean
 }
 
-export function AssistantTurn({ messages, toolOutputs }: AssistantTurnProps) {
+export function AssistantTurn({ messages, toolOutputs, onRegenerate, isLastTurn }: AssistantTurnProps) {
+  const [copied, setCopied] = useState(false)
+
+  // 从最后一条有 content 的消息提取文本和 token
+  const lastTextMsg = [...messages].reverse().find((m) => m.content)
+  const allText = messages.map((m) => m.content).filter(Boolean).join('\n\n')
+
+  // 从消息 metadata 提取 token 数据（最后一条 assistant 的 metadata）
+  const lastMsg = messages[messages.length - 1]
+  const meta = lastMsg?.metadata as Record<string, number> | undefined
+  const promptTokens = meta?.prompt_tokens
+  const completionTokens = meta?.completion_tokens
+  const totalTokens = meta?.total_tokens
+  const cachedTokens = meta?.cached_tokens
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(allText).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }, [allText])
+
   return (
     <div className="mb-7 orca-fade-in pl-4 border-l-2 border-[var(--color-accent)]/60">
       <div className="flex items-center gap-2 mb-2 -ml-[22px]">
@@ -74,6 +97,33 @@ export function AssistantTurn({ messages, toolOutputs }: AssistantTurnProps) {
           <AssistantSegment key={m.id} message={m} toolOutputs={toolOutputs} />
         ))}
       </div>
+      {/* 操作栏 */}
+      {lastTextMsg && (
+        <div className="flex items-center gap-1 mt-2 text-[var(--color-text-dim)]">
+          <button type="button" onClick={handleCopy} title="复制"
+            className="p-1.5 rounded hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] transition-colors">
+            {copied ? (
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
+            )}
+          </button>
+          {isLastTurn && onRegenerate && (
+            <button type="button" onClick={onRegenerate} title="重新生成"
+              className="p-1.5 rounded hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] transition-colors">
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" /></svg>
+            </button>
+          )}
+          {totalTokens != null && totalTokens > 0 && (
+            <span className="ml-auto text-[11px] font-mono flex items-center gap-1.5">
+              <span title="输入 tokens">↑{promptTokens?.toLocaleString() ?? '?'}</span>
+              <span title="输出 tokens">↓{completionTokens?.toLocaleString() ?? '?'}</span>
+              {cachedTokens ? <span title="缓存命中">⚡{cachedTokens.toLocaleString()}</span> : null}
+              <span className="text-[var(--color-text-muted)]">= {totalTokens.toLocaleString()}</span>
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

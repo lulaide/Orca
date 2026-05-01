@@ -190,7 +190,7 @@ func (s *Scheduler) runPatrol(cfg *core.PatrolConfig) {
 		"conversation_id": convID,
 	})
 
-	log.Printf("Patrol: %s completed in %ds (%d iterations)", cfg.Name, duration, result.Iterations)
+	log.Printf("Patrol: %s completed in %ds (%d iterations, %d tokens)", cfg.Name, duration, result.Iterations, result.TotalTokens)
 
 	s.sendNotification(cfg, "completed", summary, duration)
 }

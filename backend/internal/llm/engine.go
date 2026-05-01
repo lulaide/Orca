@@ -41,10 +41,13 @@ type RunResult struct {
 	// Final 是最终的 assistant 消息(含文本结论)。
 	Final *schema.Message
 	// Messages 是本轮追加的所有消息(assistant tool_calls + tool results + final)。
-	// 调用方应该追加到 History,作为下一轮对话的上下文。
 	Messages []*schema.Message
 	// Iterations 实际使用的迭代轮数。
 	Iterations int
+	// Token 用量统计（所有迭代累加）。
+	PromptTokens     int
+	CompletionTokens int
+	TotalTokens      int
 }
 
 // Run 执行一次完整的 Agentic Loop。
@@ -87,12 +90,19 @@ func (e *Engine) Run(ctx context.Context, in RunInput) (*RunResult, error) {
 
 	// 本轮追加的消息(返回给调用方用于追加到 History)。
 	added := make([]*schema.Message, 0, 4)
+	var promptTokens, completionTokens int
 
 	maxIter := e.manager.MaxIterations()
 	for i := 0; i < maxIter; i++ {
 		resp, err := cm.Generate(ctx, messages)
 		if err != nil {
 			return nil, fmt.Errorf("llm generate (iteration %d): %w", i+1, err)
+		}
+
+		// 累加 token 用量
+		if resp.ResponseMeta != nil && resp.ResponseMeta.Usage != nil {
+			promptTokens += resp.ResponseMeta.Usage.PromptTokens
+			completionTokens += resp.ResponseMeta.Usage.CompletionTokens
 		}
 
 		// 情况 1: 纯文本回复 → 完成。
@@ -102,9 +112,12 @@ func (e *Engine) Run(ctx context.Context, in RunInput) (*RunResult, error) {
 				in.OnMessage(resp)
 			}
 			return &RunResult{
-				Final:      resp,
-				Messages:   added,
-				Iterations: i + 1,
+				Final:            resp,
+				Messages:         added,
+				Iterations:       i + 1,
+				PromptTokens:     promptTokens,
+				CompletionTokens: completionTokens,
+				TotalTokens:      promptTokens + completionTokens,
 			}, nil
 		}
 

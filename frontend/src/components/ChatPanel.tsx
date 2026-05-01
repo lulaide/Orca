@@ -433,7 +433,7 @@ export function ChatPanel({
       <div className="flex-1 overflow-y-auto orca-grid" onMouseUp={handleSelectionMouseUp}>
         <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 md:py-10">
           {showEmpty && <EmptyState onPick={(p) => void send(p)} />}
-          {turns.map((t) =>
+          {turns.map((t, idx) =>
             t.kind === 'user' ? (
               <UserMessage key={t.message.id} message={t.message} />
             ) : (
@@ -441,6 +441,18 @@ export function ChatPanel({
                 key={t.messages[0].id}
                 messages={t.messages}
                 toolOutputs={toolOutputs}
+                isLastTurn={idx === turns.length - 1}
+                onRegenerate={idx === turns.length - 1 && !loading ? () => {
+                  // 重新生成：找到最后一条 user 消息重新发送
+                  const lastUserTurn = [...turns].reverse().find((tt) => tt.kind === 'user')
+                  if (lastUserTurn && lastUserTurn.kind === 'user') {
+                    // 删除最后一轮 assistant 消息
+                    const assistantIds = new Set(t.messages.map((m) => m.id))
+                    setMessages((prev) => prev.filter((m) => !assistantIds.has(m.id)))
+                    // 重新发送
+                    void send(lastUserTurn.message.content)
+                  }
+                } : undefined}
               />
             ),
           )}

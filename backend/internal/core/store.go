@@ -136,9 +136,20 @@ func DeleteConversation(db *gorm.DB, id string) error {
 }
 
 // SaveEinoMessage 把一个 eino schema.Message 拆成 DB 行存入 messages 表。
-// 返回保存后的行（含 ID / CreatedAt）。
+// 对 assistant 消息自动提取 token usage 存入 metadata。
 func SaveEinoMessage(db *gorm.DB, convID string, m *schema.Message) (*Message, error) {
-	return SaveEinoMessageWithMetadata(db, convID, m, nil)
+	var meta map[string]any
+	// 自动提取 token usage
+	if m.Role == schema.Assistant && m.ResponseMeta != nil && m.ResponseMeta.Usage != nil {
+		u := m.ResponseMeta.Usage
+		meta = map[string]any{
+			"prompt_tokens":     u.PromptTokens,
+			"completion_tokens": u.CompletionTokens,
+			"total_tokens":      u.TotalTokens,
+			"cached_tokens":     u.PromptTokenDetails.CachedTokens,
+		}
+	}
+	return SaveEinoMessageWithMetadata(db, convID, m, meta)
 }
 
 // SaveEinoMessageWithMetadata 与 SaveEinoMessage 同，但允许附加一个 metadata map，

@@ -116,7 +116,8 @@ func (r *EventRouter) runAgent(ev *core.Event) {
 	if err := core.MarkEventProcessed(r.db, ev.ID, summary); err != nil {
 		log.Printf("EventRouter: mark processed failed: %v", err)
 	}
-	log.Printf("EventRouter: event %s processed in %d iterations", ev.ID, result.Iterations)
+	log.Printf("EventRouter: event %s processed in %d iterations (tokens: %d prompt + %d completion = %d total)",
+		ev.ID, result.Iterations, result.PromptTokens, result.CompletionTokens, result.TotalTokens)
 }
 
 // buildInitialUserMessage 生成 Agent Loop 的首条 user 消息。

@@ -1001,7 +1001,7 @@ export async function getMCPOAuthURL(id: string): Promise<{ authorize_url?: stri
 
 export type ChatStreamEvent =
   | { type: 'message'; message: ChatMessage }
-  | { type: 'done'; conversation_id: string; iterations: number }
+  | { type: 'done'; conversation_id: string; iterations: number; prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
   | { type: 'error'; error: string }
 
 export interface StreamChatHandlers {

@@ -436,8 +436,11 @@ func (d *Deps) handleChat(c *gin.Context) {
 
 	// 6. done 帧
 	_ = emit("done", gin.H{
-		"conversation_id": conv.ID,
-		"iterations":      result.Iterations,
+		"conversation_id":  conv.ID,
+		"iterations":       result.Iterations,
+		"prompt_tokens":    result.PromptTokens,
+		"completion_tokens": result.CompletionTokens,
+		"total_tokens":     result.TotalTokens,
 	})
 
 	// 7. 首轮结束后异步生成更贴切的标题,不阻塞请求返回。

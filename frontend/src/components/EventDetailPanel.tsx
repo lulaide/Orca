@@ -9,39 +9,10 @@ import {
   type EventDetail,
 } from '../api'
 import { navigate } from '../navigate'
-import { UserMessage, AssistantTurn } from './MessageBubble'
+import { ToolCallCard } from './ToolCallCard'
+import { InvestigationRefCard } from './InvestigationRefCard'
 import { SeverityDot, StatusBadge } from './investigationUI'
 import { formatRelativeTime } from '../timeFormat'
-
-// EventDetailPanel 展示一次 Event 的完整处理轨迹：
-//   1. 顶部：Event 元信息 + 待处理/done 徽标 + agent_summary
-//   2. 中段：Agent 在这次事件里创建 / 关联的 Investigation chip
-//   3. 主体：复用 ChatPanel 的消息渲染，把 Agent Loop 里的
-//      user / assistant / tool 调用按轮次展开。这样用户看到的
-//      是和用户会话一致的时间线——工具参数、工具结果、思考都在。
-//
-// 数据来源：/api/events/:id 拿 Event + 关联 Investigation，
-// /api/conversations/:cid/messages 拿完整消息（由 EventRouter 在
-// runAgent 里创建的那条 Conversation）。
-
-type Turn =
-  | { kind: 'user'; message: ChatMessage }
-  | { kind: 'assistant'; messages: ChatMessage[] }
-
-function groupIntoTurns(messages: ChatMessage[]): Turn[] {
-  const turns: Turn[] = []
-  for (const m of messages) {
-    if (m.role === 'user') {
-      turns.push({ kind: 'user', message: m })
-    } else if (m.role === 'assistant') {
-      const last = turns[turns.length - 1]
-      if (last && last.kind === 'assistant') last.messages.push(m)
-      else turns.push({ kind: 'assistant', messages: [m] })
-    }
-    // tool / system: tool 由 ToolCallCard 通过 tool_call_id 取用，system 不展示
-  }
-  return turns
-}
 
 interface Props {
   id: string
@@ -64,24 +35,17 @@ export function EventDetailPanel({ id }: Props) {
         const cid = d.event.conversation_id
         if (cid) {
           getConversationMessages(cid)
-            .then((msgs) => {
-              if (!cancelled) setMessages(msgs)
-            })
-            .catch(() => {
-              if (!cancelled) setMessages([])
-            })
+            .then((msgs) => { if (!cancelled) setMessages(msgs) })
+            .catch(() => { if (!cancelled) setMessages([]) })
         } else {
           setMessages([])
         }
       })
-      .catch((e) => {
-        if (!cancelled) setErr(e?.message || '加载失败')
-      })
-    return () => {
-      cancelled = true
-    }
+      .catch((e) => { if (!cancelled) setErr(e?.message || '加载失败') })
+    return () => { cancelled = true }
   }, [id])
 
+  // tool 输出 map
   const toolOutputs = useMemo(() => {
     const map: Record<string, string> = {}
     if (!messages) return map
@@ -93,15 +57,17 @@ export function EventDetailPanel({ id }: Props) {
     return map
   }, [messages])
 
-  const turns = useMemo(() => (messages ? groupIntoTurns(messages) : []), [messages])
+  // 只保留 assistant 消息（过滤 user/system/tool）
+  const assistantMessages = useMemo(() => {
+    if (!messages) return []
+    return messages.filter((m) => m.role === 'assistant')
+  }, [messages])
 
   if (err) {
     return (
       <div className="flex flex-col flex-1 min-h-0 h-full">
         <TopBar id={id} />
-        <div className="flex-1 flex items-center justify-center text-[13px] text-[var(--color-danger)] font-mono">
-          {err}
-        </div>
+        <div className="flex-1 flex items-center justify-center text-[13px] text-[var(--color-danger)] font-mono">{err}</div>
       </div>
     )
   }
@@ -110,9 +76,7 @@ export function EventDetailPanel({ id }: Props) {
     return (
       <div className="flex flex-col flex-1 min-h-0 h-full">
         <TopBar id={id} />
-        <div className="flex-1 flex items-center justify-center text-[12.5px] text-[var(--color-text-dim)] italic">
-          加载中…
-        </div>
+        <div className="flex-1 flex items-center justify-center text-[12.5px] text-[var(--color-text-dim)]">加载中…</div>
       </div>
     )
   }
@@ -124,9 +88,9 @@ export function EventDetailPanel({ id }: Props) {
     <div className="flex flex-col flex-1 min-h-0 h-full">
       <TopBar id={id} />
 
-      <div className="flex-1 overflow-y-auto orca-grid">
+      <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-8">
-          {/* Event 元信息 */}
+          {/* 事件元信息 */}
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-2 text-[12px] text-[var(--color-text-dim)]">
               <span>来源：{event.source}</span>
@@ -134,7 +98,7 @@ export function EventDetailPanel({ id }: Props) {
               <span>{formatRelativeTime(event.created_at)}</span>
               {!processed ? (
                 <span className="ml-2 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-warn)]/10 text-[var(--color-warn)] border border-[var(--color-warn)]/20">
-                  待处理
+                  处理中
                 </span>
               ) : (
                 <span className="ml-2 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-ok)]/10 text-[var(--color-ok)] border border-[var(--color-ok)]/20">
@@ -143,31 +107,16 @@ export function EventDetailPanel({ id }: Props) {
               )}
             </div>
             <div className="flex items-start gap-2 mb-3">
-              <span className="mt-2">
-                <SeverityDot severity={event.severity} />
-              </span>
+              <span className="mt-2"><SeverityDot severity={event.severity} /></span>
               <h1 className="font-semibold text-[18px] md:text-[22px] leading-tight text-[var(--color-text)]">
                 {event.title}
               </h1>
             </div>
-            {event.related_services && event.related_services.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {event.related_services.map((s) => (
-                  <span
-                    key={s}
-                    className="px-2 py-0.5 rounded border border-[var(--color-border)]
-                      text-[11.5px] font-mono text-[var(--color-text-muted)]"
-                  >
-                    {s}
-                  </span>
-                ))}
-              </div>
-            )}
+
+            {/* 处理摘要 */}
             {event.agent_summary && (
-              <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)]/60 px-4 py-3">
-                <div className="text-[13px] font-medium text-[var(--color-text-muted)] mb-1.5">
-                  处理摘要
-                </div>
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/60 px-4 py-3 mb-4">
+                <div className="text-[13px] font-medium text-[var(--color-text-muted)] mb-1.5">处理摘要</div>
                 <div className="orca-prose text-[13.5px]">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{event.agent_summary}</ReactMarkdown>
                 </div>
@@ -175,85 +124,84 @@ export function EventDetailPanel({ id }: Props) {
             )}
           </div>
 
-          {/* 关联 Investigation chip 条 */}
-          <div className="mb-8">
-            <div className="text-[15px] font-semibold text-[var(--color-text)] mb-2">
-              关联调查
-            </div>
-            {investigations.length === 0 ? (
-              <div className="text-[12.5px] text-[var(--color-text-dim)] italic">
-                无——Agent 判定为瞬时抖动或未产生调查。
-              </div>
-            ) : (
+          {/* 关联调查 */}
+          {investigations.length > 0 && (
+            <div className="mb-8">
+              <div className="text-[15px] font-semibold text-[var(--color-text)] mb-2">关联调查</div>
               <div className="flex flex-col gap-1.5">
                 {investigations.map((inv) => (
-                  <button
-                    key={inv.id}
-                    type="button"
-                    onClick={() => navigate(`/i/${inv.id}`)}
-                    className="group flex items-center gap-2 px-3 py-2 rounded-md
-                      border border-[var(--color-border)]
-                      hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface)]
-                      text-left transition-colors"
-                  >
+                  <button key={inv.id} type="button" onClick={() => navigate(`/i/${inv.id}`)}
+                    className="group flex items-center gap-2 px-3 py-2 rounded-md border border-[var(--color-border)]
+                      hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface)] text-left transition-colors">
                     <SeverityDot severity={inv.severity} />
-                    <span className="flex-1 truncate text-[13.5px] text-[var(--color-text)]">
-                      {inv.title || '未命名调查'}
-                    </span>
+                    <span className="flex-1 truncate text-[13.5px] text-[var(--color-text)]">{inv.title || '未命名调查'}</span>
                     <StatusBadge status={inv.status} />
                   </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Agent 处理过程 — 平铺式，不用对话气泡 */}
+          <div className="mb-6">
+            <div className="text-[15px] font-semibold text-[var(--color-text)] mb-3">处理过程</div>
+
+            {!event.conversation_id && (
+              <div className="text-[12.5px] text-[var(--color-text-dim)]">暂无处理记录</div>
+            )}
+
+            {event.conversation_id && messages === null && (
+              <div className="text-[12.5px] text-[var(--color-text-dim)]">加载中…</div>
+            )}
+
+            {event.conversation_id && !processed && assistantMessages.length === 0 && messages !== null && (
+              <div className="flex items-center gap-2 text-[13px] text-[var(--color-text-dim)]">
+                <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
+                Agent 正在处理中…
+              </div>
+            )}
+
+            {assistantMessages.length > 0 && (
+              <div className="space-y-4">
+                {assistantMessages.map((m) => (
+                  <div key={m.id}>
+                    {/* 文字内容 */}
+                    {m.content && (
+                      <div className="orca-prose text-[13.5px] mb-2">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                      </div>
+                    )}
+                    {/* 工具调用 */}
+                    {m.tool_calls && m.tool_calls.length > 0 && (
+                      <div className="space-y-1.5">
+                        {m.tool_calls.map((tc) =>
+                          tc.function.name === 'create_investigation' ? (
+                            <InvestigationRefCard key={tc.id} toolCall={tc} output={toolOutputs[tc.id]} />
+                          ) : (
+                            <ToolCallCard key={tc.id} toolCall={tc} output={toolOutputs[tc.id]} />
+                          ),
+                        )}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Agent 处理时间线 */}
-          <div>
-            <div className="mb-3">
-              <span className="text-[15px] font-semibold text-[var(--color-text)]">
-                处理过程
-              </span>
+          {/* 继续对话按钮 — 仅处理完成后显示 */}
+          {processed && event.conversation_id && (
+            <div className="flex justify-center pt-4 pb-8">
+              <button type="button" onClick={async () => {
+                try {
+                  const conv = await forkConversation(event.conversation_id!)
+                  navigate(`/c/${conv.id}`)
+                } catch { /* */ }
+              }} className="orca-btn-secondary">
+                继续对话 →
+              </button>
             </div>
-            {!event.conversation_id && (
-              <div className="text-[12.5px] text-[var(--color-text-dim)] italic">
-                本事件没有关联的 Agent 会话记录（可能是旧数据，或 Agent Loop 尚未写入会话）。
-              </div>
-            )}
-            {event.conversation_id && messages === null && (
-              <div className="text-[12.5px] text-[var(--color-text-dim)] italic">加载消息中…</div>
-            )}
-            {event.conversation_id && messages && messages.length === 0 && (
-              <div className="text-[12.5px] text-[var(--color-text-dim)] italic">
-                会话暂无消息。
-              </div>
-            )}
-            {event.conversation_id && messages && messages.length > 0 && (
-              <div>
-                {turns.map((t) =>
-                  t.kind === 'user' ? (
-                    <UserMessage key={t.message.id} message={t.message} />
-                  ) : (
-                    <AssistantTurn
-                      key={t.messages[0].id}
-                      messages={t.messages}
-                      toolOutputs={toolOutputs}
-                    />
-                  ),
-                )}
-                <div className="mt-6 flex justify-center">
-                  <button type="button" onClick={async () => {
-                    try {
-                      const conv = await forkConversation(event.conversation_id!)
-                      navigate(`/c/${conv.id}`)
-                    } catch { /* */ }
-                  }}
-                    className="orca-btn-secondary">
-                    继续对话 →
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>

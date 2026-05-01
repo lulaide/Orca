@@ -242,16 +242,21 @@ func extractSummaryLine(summary string) string {
 	return ""
 }
 
-// containsIssue 简单判断巡检结果是否包含问题。
+// containsIssue 判断巡检摘要是否包含问题。
+// 排除否定前缀（"无异常"、"未发现问题"等）。
 func containsIssue(summary string) bool {
-	keywords := []string{"问题", "异常", "故障", "失败", "不可用", "CrashLoop", "NotReady", "Pending", "error", "critical", "warning", "Investigation"}
-	for _, kw := range keywords {
-		if len(summary) > 0 {
-			for i := 0; i <= len(summary)-len(kw); i++ {
-				if summary[i:i+len(kw)] == kw {
-					return true
-				}
-			}
+	// 先检查是否明确表示正常
+	normalPhrases := []string{"无异常", "一切正常", "未发现问题", "集群健康", "无问题", "正常运行", "无告警"}
+	for _, p := range normalPhrases {
+		if strings.Contains(summary, p) {
+			return false
+		}
+	}
+	// 再检查是否有问题关键词
+	issueKeywords := []string{"问题", "故障", "失败", "不可用", "CrashLoop", "NotReady", "ImagePullBackOff", "Pending", "OOMKilled", "频繁重启", "Investigation"}
+	for _, kw := range issueKeywords {
+		if strings.Contains(summary, kw) {
+			return true
 		}
 	}
 	return false

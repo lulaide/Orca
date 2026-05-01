@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/lulaide/Orca/compare/v0.4.0...v0.5.0) (2026-05-01)
+
+
+### Features
+
+* Skill 安装（git clone）+ 预览 + 卸载 + scripts 支持 ([b5cd95e](https://github.com/lulaide/Orca/commit/b5cd95ebb1813160191ed0700efde29ab1ee90ba))
+* Skill 注入优化 + Agent 学习能力 + UI 调整 ([b41a0a3](https://github.com/lulaide/Orca/commit/b41a0a37f629ae037855b2e41a29b9805b157807))
+* 更新 README，添加 React、Vite 和 Kubernetes 的徽章 ([f6beedd](https://github.com/lulaide/Orca/commit/f6beedd59f786e6bc6965df0dd2345161b0d062e))
+
+
+### Bug Fixes
+
+* go-git 内存 clone 替代 exec git ([d14e891](https://github.com/lulaide/Orca/commit/d14e891ede6814e2fd00ea5b573cde6d9ab358d6))
+
 ## [0.4.0](https://github.com/lulaide/Orca/compare/v0.3.0...v0.4.0) (2026-04-28)
 
 

@@ -3,14 +3,18 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-git/go-billy/v5"
+	"github.com/go-git/go-billy/v5/memfs"
+	git "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/storage/memory"
 	"gorm.io/datatypes"
 
 	"github.com/lulaide/orca/internal/core"
@@ -28,12 +32,8 @@ type discoveredSkill struct {
 	Installed   bool              `json:"installed"`
 }
 
-// 缓存已 clone 的仓库
-var (
-	cloneMu   sync.Mutex
-	cloneDir  string
-	cloneRepo string
-)
+// clone 互斥锁（防止并发 clone）
+var cloneMu sync.Mutex
 
 // POST /api/skills/scan-repo
 func (d *Deps) handleScanRepo(c *gin.Context) {
@@ -51,8 +51,9 @@ func (d *Deps) handleScanRepo(c *gin.Context) {
 		return
 	}
 
-	dir, err := ensureClone(repo)
+	fs, err := cloneToMemory(repo)
 	if err != nil {
+		log.Printf("scan-repo: clone %s failed: %v", repo, err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "clone 失败: " + err.Error()})
 		return
 	}
@@ -66,7 +67,7 @@ func (d *Deps) handleScanRepo(c *gin.Context) {
 	}
 
 	var result []discoveredSkill
-	scanLocalDir(dir, dir, installed, &result)
+	scanMemFS(fs, "/", "/", installed, &result)
 	if result == nil {
 		result = []discoveredSkill{}
 	}
@@ -93,8 +94,9 @@ func (d *Deps) handleInstallSkills(c *gin.Context) {
 	}
 
 	repo := normalizeRepo(body.Repo)
-	dir, err := ensureClone(repo)
+	fs, err := cloneToMemory(repo)
 	if err != nil {
+		log.Printf("install: clone %s failed: %v", repo, err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "clone 失败: " + err.Error()})
 		return
 	}
@@ -103,8 +105,8 @@ func (d *Deps) handleInstallSkills(c *gin.Context) {
 	var errors []string
 
 	for _, sk := range body.Skills {
-		skillDir := filepath.Join(dir, sk.Path)
-		raw, err := os.ReadFile(filepath.Join(skillDir, "SKILL.md"))
+		skillPath := "/" + sk.Path
+		raw, err := readBillyFile(fs, skillPath+"/SKILL.md")
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("%s: 无法读取 SKILL.md", sk.Name))
 			continue
@@ -119,8 +121,8 @@ func (d *Deps) handleInstallSkills(c *gin.Context) {
 			name = filepath.Base(sk.Path)
 		}
 
-		refs := readDirFiles(filepath.Join(skillDir, "references"))
-		scripts := readDirFiles(filepath.Join(skillDir, "scripts"))
+		refs := readBillyDir(fs, skillPath+"/references")
+		scripts := readBillyDir(fs, skillPath+"/scripts")
 
 		refsJSON, _ := json.Marshal(refs)
 		scriptsJSON, _ := json.Marshal(scripts)
@@ -168,46 +170,26 @@ func (d *Deps) handleUninstallSkill(c *gin.Context) {
 
 // ---- git clone ----
 
-func ensureClone(repo string) (string, error) {
+func cloneToMemory(repo string) (billy.Filesystem, error) {
 	cloneMu.Lock()
 	defer cloneMu.Unlock()
 
-	if cloneDir != "" && cloneRepo == repo {
-		if _, err := os.Stat(cloneDir); err == nil {
-			return cloneDir, nil
-		}
-	}
-
-	// 清理旧的
-	if cloneDir != "" {
-		os.RemoveAll(cloneDir)
-		cloneDir = ""
-		cloneRepo = ""
-	}
-
-	dir, err := os.MkdirTemp("", "orca-skill-*")
-	if err != nil {
-		return "", err
-	}
-
 	url := fmt.Sprintf("https://github.com/%s.git", repo)
-	cmd := exec.Command("git", "clone", "--depth", "1", url, dir)
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-	output, err := cmd.CombinedOutput()
+	fs := memfs.New()
+	_, err := git.Clone(memory.NewStorage(), fs, &git.CloneOptions{
+		URL:   url,
+		Depth: 1,
+	})
 	if err != nil {
-		os.RemoveAll(dir)
-		return "", fmt.Errorf("%s: %s", err, string(output))
+		return nil, fmt.Errorf("clone %s: %w", repo, err)
 	}
-
-	cloneDir = dir
-	cloneRepo = repo
-	return dir, nil
+	return fs, nil
 }
 
-// ---- 本地文件扫描 ----
+// ---- 内存文件系统扫描 ----
 
-func scanLocalDir(baseDir, dir string, installed map[string]bool, result *[]discoveredSkill) {
-	entries, err := os.ReadDir(dir)
+func scanMemFS(fs billy.Filesystem, baseDir, dir string, installed map[string]bool, result *[]discoveredSkill) {
+	entries, err := fs.ReadDir(dir)
 	if err != nil {
 		return
 	}
@@ -221,7 +203,7 @@ func scanLocalDir(baseDir, dir string, installed map[string]bool, result *[]disc
 	}
 
 	if hasSkillMD && dir != baseDir {
-		raw, err := os.ReadFile(filepath.Join(dir, "SKILL.md"))
+		raw, err := readBillyFile(fs, filepath.Join(dir, "SKILL.md"))
 		if err == nil {
 			fm, content := parseFrontmatterFull(string(raw))
 			name := fm["name"]
@@ -236,8 +218,8 @@ func scanLocalDir(baseDir, dir string, installed map[string]bool, result *[]disc
 			relPath, _ := filepath.Rel(baseDir, dir)
 			relPath = filepath.ToSlash(relPath)
 
-			refs := readDirFiles(filepath.Join(dir, "references"))
-			scripts := readDirFiles(filepath.Join(dir, "scripts"))
+			refs := readBillyDir(fs, filepath.Join(dir, "references"))
+			scripts := readBillyDir(fs, filepath.Join(dir, "scripts"))
 
 			*result = append(*result, discoveredSkill{
 				Name:        name,
@@ -261,14 +243,24 @@ func scanLocalDir(baseDir, dir string, installed map[string]bool, result *[]disc
 		if strings.HasPrefix(n, ".") || n == "node_modules" || n == "spec" || n == "__pycache__" {
 			continue
 		}
-		scanLocalDir(baseDir, filepath.Join(dir, n), installed, result)
+		scanMemFS(fs, baseDir, filepath.Join(dir, n), installed, result)
 	}
 }
 
-// readDirFiles 读取目录下所有文本文件
-func readDirFiles(dir string) map[string]string {
+// readBillyFile 从 billy 内存文件系统读取文件
+func readBillyFile(fs billy.Filesystem, path string) ([]byte, error) {
+	f, err := fs.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(f)
+}
+
+// readBillyDir 读取 billy 内存文件系统中目录下所有文件
+func readBillyDir(fs billy.Filesystem, dir string) map[string]string {
 	files := make(map[string]string)
-	entries, err := os.ReadDir(dir)
+	entries, err := fs.ReadDir(dir)
 	if err != nil {
 		return files
 	}
@@ -276,7 +268,7 @@ func readDirFiles(dir string) map[string]string {
 		if e.IsDir() {
 			continue
 		}
-		content, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		content, err := readBillyFile(fs, filepath.Join(dir, e.Name()))
 		if err != nil {
 			continue
 		}

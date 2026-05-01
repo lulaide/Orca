@@ -147,6 +147,31 @@ type Skill struct {
 	UpdatedAt   time.Time      `json:"updated_at"`
 }
 
+// PatrolConfig 定时巡检任务配置。
+type PatrolConfig struct {
+	ID        string     `gorm:"primaryKey" json:"id"`
+	Name      string     `json:"name"`                            // "集群健康检查"
+	Schedule  string     `json:"schedule"`                        // cron 表达式 "0 */6 * * *"
+	Prompt    string     `gorm:"type:text" json:"prompt"`         // 自然语言巡检指令
+	Severity  string     `gorm:"default:warning" json:"severity"` // 生成事件的严重度
+	Enabled   bool       `gorm:"default:true" json:"enabled"`
+	LastRunAt *time.Time `json:"last_run_at"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}
+
+// PatrolRun 巡检运行记录。
+type PatrolRun struct {
+	ID             string    `gorm:"primaryKey" json:"id"`
+	PatrolID       string    `gorm:"index" json:"patrol_id"`
+	ConversationID string    `json:"conversation_id"`
+	Status         string    `json:"status"` // "running" | "completed" | "failed"
+	Summary        string    `gorm:"type:text" json:"summary"`
+	Duration       int       `json:"duration"`
+	Error          string    `json:"error"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
 // MCPConnection 是一个外部 MCP Server 的连接配置。
 // Orca 作为 MCP Client 连接到这些 Server，发现并注册它们提供的工具，
 // 让 Agent 在推理时能调用外部能力（如 Cloudflare DNS、Grafana 查询等）。

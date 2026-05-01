@@ -825,6 +825,79 @@ export async function uninstallSkill(name: string): Promise<void> {
   if (!res.ok) throw new Error(`uninstall skill: ${res.status}`)
 }
 
+// ---- Patrol ----
+
+export interface PatrolConfig {
+  id: string
+  name: string
+  schedule: string
+  prompt: string
+  severity: string
+  enabled: boolean
+  last_run_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PatrolRun {
+  id: string
+  patrol_id: string
+  conversation_id: string
+  status: string
+  summary: string
+  duration: number
+  error: string
+  created_at: string
+}
+
+export async function listPatrols(): Promise<PatrolConfig[]> {
+  const res = await authFetch('/api/patrols')
+  if (!res.ok) throw new Error(`patrols: ${res.status}`)
+  return res.json()
+}
+
+export async function getPatrol(id: string): Promise<PatrolConfig> {
+  const res = await authFetch(`/api/patrols/${id}`)
+  if (!res.ok) throw new Error(`patrol: ${res.status}`)
+  return res.json()
+}
+
+export async function createPatrol(data: { name: string; schedule: string; prompt: string; severity: string }): Promise<PatrolConfig> {
+  const res = await authFetch('/api/patrols', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error(`create patrol: ${res.status}`)
+  return res.json()
+}
+
+export async function updatePatrol(id: string, data: Record<string, unknown>): Promise<PatrolConfig> {
+  const res = await authFetch(`/api/patrols/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error(`update patrol: ${res.status}`)
+  return res.json()
+}
+
+export async function deletePatrol(id: string): Promise<void> {
+  const res = await authFetch(`/api/patrols/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`delete patrol: ${res.status}`)
+}
+
+export async function runPatrol(id: string): Promise<void> {
+  const res = await authFetch(`/api/patrols/${id}/run`, { method: 'POST' })
+  if (!res.ok) throw new Error(`run patrol: ${res.status}`)
+}
+
+export async function listPatrolRuns(id: string): Promise<PatrolRun[]> {
+  const res = await authFetch(`/api/patrols/${id}/runs`)
+  if (!res.ok) throw new Error(`patrol runs: ${res.status}`)
+  return res.json()
+}
+
 // ---- MCP Connections ----
 
 export type MCPTransport = 'stdio' | 'sse'

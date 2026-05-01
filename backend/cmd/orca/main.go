@@ -5,6 +5,8 @@ import (
 	"embed"
 	"log"
 
+	"gorm.io/gorm"
+
 	"github.com/lulaide/orca/internal/api"
 	"github.com/lulaide/orca/internal/auth"
 	"github.com/lulaide/orca/internal/config"
@@ -15,6 +17,7 @@ import (
 	"github.com/lulaide/orca/internal/llm"
 	"github.com/lulaide/orca/internal/mcp"
 	"github.com/lulaide/orca/internal/notify"
+	"github.com/lulaide/orca/internal/patrol"
 	"github.com/lulaide/orca/internal/tools"
 	"github.com/lulaide/orca/internal/triggers"
 )
@@ -46,6 +49,8 @@ func main() {
 		&core.MCPConnection{},
 		&core.KnowledgePage{},
 		&core.Skill{},
+		&core.PatrolConfig{},
+		&core.PatrolRun{},
 		&core.User{},
 	); err != nil {
 		log.Fatalf("Migration: %v", err)
@@ -135,7 +140,13 @@ func main() {
 	// 12. OAuth Manager
 	oauthMgr := auth.NewOAuthManager(gormDB)
 
-	// 12. HTTP Server
+	// 13. Patrol Scheduler
+	patrolScheduler := patrol.NewScheduler(gormDB, engine, notifyMgr)
+	seedDefaultPatrol(gormDB)
+	patrolScheduler.Start()
+	defer patrolScheduler.Stop()
+
+	// 14. HTTP Server
 	router := api.NewRouter(&api.Deps{
 		FrontendFS: frontendFS,
 		DB:       gormDB,
@@ -149,6 +160,7 @@ func main() {
 		JWTSecret: jwtSecret,
 		OAuth:     oauthMgr,
 		Notify:    notifyMgr,
+		Patrol:    patrolScheduler,
 	})
 
 	addr := cfg.Server.Addr()
@@ -165,4 +177,30 @@ func pluginNames(r *triggers.Registry) []string {
 		names = append(names, p.Name())
 	}
 	return names
+}
+
+// seedDefaultPatrol 首次启动时创建默认巡检任务。
+func seedDefaultPatrol(gormDB *gorm.DB) {
+	var count int64
+	gormDB.Model(&core.PatrolConfig{}).Count(&count)
+	if count > 0 {
+		return
+	}
+	cfg := &core.PatrolConfig{
+		Name:     "集群健康检查",
+		Schedule: "0 */6 * * *",
+		Severity: "warning",
+		Enabled:  true,
+		Prompt: `检查集群整体健康状态：
+1. 所有节点是否 Ready，资源使用是否接近上限
+2. 是否有 Pod 处于 CrashLoopBackOff、ImagePullBackOff 或 Pending 状态
+3. 是否有频繁重启的 Pod（最近 1 小时重启 > 3 次）
+4. 是否有 Event 中的异常警告
+如果发现问题，创建 Investigation 记录。一切正常则简短总结。`,
+	}
+	if err := core.CreatePatrolConfig(gormDB, cfg); err != nil {
+		log.Printf("Patrol: seed default failed: %v", err)
+	} else {
+		log.Printf("Patrol: created default patrol %q", cfg.Name)
+	}
 }

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { applyTheme, type Theme } from '../theme'
 import { logout } from './AuthGuard'
 
-export type Module = 'home' | 'chat' | 'events' | 'investigations' | 'knowledge' | 'triggers' | 'mcp' | 'notifications' | 'settings'
+export type Module = 'home' | 'chat' | 'events' | 'investigations' | 'knowledge' | 'patrol' | 'triggers' | 'mcp' | 'notifications' | 'settings'
 
 interface Props {
   active: Module
@@ -56,6 +56,7 @@ export function IconRail({ active, onSelect, username }: Props) {
         <NavItem icon={<EventIcon />} label="事件" module="events" active={active} onSelect={onSelect} />
         <NavItem icon={<InvestigationIcon />} label="调查" module="investigations" active={active} onSelect={onSelect} />
         <NavItem icon={<KnowledgeIcon />} label="知识库" module="knowledge" active={active} onSelect={onSelect} />
+        <NavItem icon={<PatrolIcon />} label="巡检" module="patrol" active={active} onSelect={onSelect} />
 
         <div className="my-2 mx-2 border-t border-[var(--color-border)]" />
 
@@ -157,6 +158,9 @@ function InvestigationIcon() {
 }
 function KnowledgeIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" /><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" /></svg>
+}
+function PatrolIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
 }
 function TriggerIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 20V10" /><path d="M12 20V4" /><path d="M6 20v-6" /></svg>

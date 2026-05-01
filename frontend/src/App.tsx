@@ -11,6 +11,7 @@ import { EventDetailPanel } from './components/EventDetailPanel'
 import { TriggersPanel } from './components/TriggersPanel'
 import { MCPPanel } from './components/MCPPanel'
 import { KnowledgePanel } from './components/KnowledgePanel'
+import { PatrolPanel } from './components/PatrolPanel'
 import { NotificationPanel } from './components/NotificationPanel'
 import { SettingsPanel } from './components/SettingsPanel'
 import type { InvestigationView, ReferencedInvestigation, AuthStatus } from './api'
@@ -23,6 +24,7 @@ type Route =
   | { module: 'events'; eventId: string | null }
   | { module: 'investigations'; id: string | null; view: InvestigationView }
   | { module: 'knowledge'; slug: string | null }
+  | { module: 'patrol'; patrolId: string | null }
   | { module: 'triggers' }
   | { module: 'mcp' }
   | { module: 'notifications' }
@@ -41,6 +43,10 @@ function parseRoute(pathname: string, search: string): Route {
     return { module: 'knowledge', slug: pathname.slice('/knowledge/'.length) || null }
   }
   if (pathname === '/knowledge') return { module: 'knowledge', slug: null }
+  if (pathname.startsWith('/patrol/')) {
+    return { module: 'patrol', patrolId: pathname.slice('/patrol/'.length) || null }
+  }
+  if (pathname === '/patrol') return { module: 'patrol', patrolId: null }
   // /events/{id}
   const evDetail = pathname.match(/^\/events\/([A-Za-z0-9_-]{6,})$/)
   if (evDetail) return { module: 'events', eventId: evDetail[1] }
@@ -66,7 +72,7 @@ function getModule(route: Route): Module {
   return route.module
 }
 
-const MODULES_WITH_PANEL: Module[] = ['chat', 'events', 'investigations', 'knowledge']
+const MODULES_WITH_PANEL: Module[] = ['chat', 'events', 'investigations', 'knowledge', 'patrol']
 
 function App() {
   const [route, setRoute] = useState<Route>(() =>
@@ -99,6 +105,7 @@ function App() {
       events: '/events',
       investigations: '/i',
       knowledge: '/knowledge',
+      patrol: '/patrol',
       triggers: '/triggers',
       mcp: '/mcp',
       notifications: '/notifications',
@@ -141,7 +148,8 @@ function App() {
     (route.module === 'chat' && route.conversationId !== null) ||
     (route.module === 'events' && route.eventId !== null) ||
     (route.module === 'investigations' && route.id !== null) ||
-    (route.module === 'knowledge' && route.slug !== null)
+    (route.module === 'knowledge' && route.slug !== null) ||
+    (route.module === 'patrol' && route.patrolId !== null)
 
   return (
     <AuthGuard onUser={setCurrentUser}>
@@ -198,6 +206,9 @@ function App() {
           <div className="flex-1 flex items-center justify-center text-[13px] text-[var(--color-text-dim)]">
             选择左侧调查查看详情
           </div>
+        )}
+        {route.module === 'patrol' && (
+          <PatrolPanel />
         )}
         {route.module === 'knowledge' && (
           <KnowledgePanel />

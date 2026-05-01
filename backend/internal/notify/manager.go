@@ -224,6 +224,16 @@ func (m *Manager) SendTest() error {
 	return m.lark.SendText("🐋 Orca 通知测试 — 如果你看到这条消息，说明飞书通知已配置成功。")
 }
 
+// SendCard 发送自定义卡片通知（供 patrol 等模块使用）。
+func (m *Manager) SendCard(title, content, color string) {
+	if m.lark == nil {
+		return
+	}
+	if err := m.lark.SendCard(title, content, color); err != nil {
+		log.Printf("Notify: send card failed: %v", err)
+	}
+}
+
 func severityColor(s string) string {
 	switch s {
 	case "critical":

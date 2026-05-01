@@ -11,6 +11,7 @@ import (
 
 	"github.com/lulaide/orca/internal/auth"
 	"github.com/lulaide/orca/internal/notify"
+	"github.com/lulaide/orca/internal/patrol"
 	"github.com/lulaide/orca/internal/dispatch"
 	"github.com/lulaide/orca/internal/kube"
 	"github.com/lulaide/orca/internal/llm"
@@ -33,6 +34,7 @@ type Deps struct {
 	JWTSecret  string
 	OAuth      *auth.OAuthManager
 	Notify     *notify.Manager
+	Patrol     *patrol.Scheduler
 }
 
 // NewRouter 创建并返回 gin 路由。
@@ -141,6 +143,15 @@ func NewRouter(d *Deps) *gin.Engine {
 		// 知识库扫描
 		api.POST("/knowledge/scan", d.handleScanCluster)
 		api.GET("/knowledge/scan/stream", d.handleScanStream)
+
+		// 巡检
+		api.GET("/patrols", d.handleListPatrols)
+		api.POST("/patrols", d.handleCreatePatrol)
+		api.GET("/patrols/:id", d.handleGetPatrol)
+		api.PUT("/patrols/:id", d.handleUpdatePatrol)
+		api.DELETE("/patrols/:id", d.handleDeletePatrol)
+		api.POST("/patrols/:id/run", d.handleRunPatrol)
+		api.GET("/patrols/:id/runs", d.handleListPatrolRuns)
 
 		// 技能库
 		api.GET("/skills", d.handleListSkills)

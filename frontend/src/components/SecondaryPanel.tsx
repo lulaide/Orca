@@ -6,6 +6,8 @@ import {
   listInvestigations,
   listSkills,
   uninstallSkill,
+  listPatrols,
+  type PatrolConfig,
   type Conversation,
   type OrcaEvent,
   type Investigation,
@@ -39,6 +41,7 @@ export function SecondaryPanel(props: Props) {
       {props.module === 'events' && <EventsList {...props} />}
       {props.module === 'investigations' && <InvestigationsList {...props} />}
       {props.module === 'knowledge' && <SkillList {...props} />}
+      {props.module === 'patrol' && <PatrolList {...props} />}
     </aside>
   )
 }
@@ -329,6 +332,50 @@ function SkillList({ refreshToken, activeKnowledgeSlug, onSelectKnowledgeSlug }:
           <div className="text-[11px] opacity-70">从 GitHub 仓库安装</div>
         </div>
       </button>
+    </>
+  )
+}
+
+// ======================== Patrol 巡检列表 ========================
+
+function PatrolList({ refreshToken }: Props) {
+  const [patrols, setPatrols] = useState<PatrolConfig[]>([])
+
+  useEffect(() => {
+    listPatrols().then(setPatrols).catch(() => {})
+  }, [refreshToken])
+
+  const activeId = window.location.pathname.startsWith('/patrol/') ? window.location.pathname.slice('/patrol/'.length) : null
+
+  return (
+    <>
+      <PanelHeader title="巡检" action={{ label: '+ 新建', onClick: () => navigate('/patrol?new=1') }} />
+      <div className="flex-1 overflow-y-auto px-2 py-1">
+        {patrols.length === 0 && <EmptyHint>暂无巡检任务</EmptyHint>}
+        {patrols.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => navigate(`/patrol/${p.id}`)}
+            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded text-left transition-colors mb-0.5
+              ${activeId === p.id
+                ? 'bg-[var(--color-surface-2)] text-[var(--color-text)]'
+                : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]'}`}
+          >
+            <span className={`w-2 h-2 rounded-full shrink-0 ${
+              !p.enabled ? 'bg-[var(--color-text-dim)]' :
+              p.last_run_at ? 'bg-[var(--color-ok)]' : 'bg-[var(--color-border-strong)]'
+            }`} />
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-semibold truncate">{p.name}</div>
+              <div className="text-[11px] text-[var(--color-text-dim)] font-mono">{p.schedule}</div>
+            </div>
+            {!p.enabled && (
+              <span className="text-[10px] text-[var(--color-text-dim)] shrink-0">禁用</span>
+            )}
+          </button>
+        ))}
+      </div>
     </>
   )
 }

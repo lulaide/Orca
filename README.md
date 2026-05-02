@@ -55,11 +55,11 @@ kubectl -n orca-system port-forward svc/orca 8080:80
 
 Orca 是一个开源的运维 Agent 平台，核心解决三个问题：
 
-1. **异常发现**：插件化告警源接入 + 自动巡检，第一时间感知异常
-2. **智能排障**：LLM 驱动的 Agentic Loop，自主调用工具链进行根因分析
-3. **团队协作**：事件追踪、模块分工、群通知、知识积累
+1. **异常发现**：插件化告警源接入 + 定时巡检，第一时间感知异常
+2. **智能排障**：LLM 驱动的 Agentic Loop，自主调用工具链进行根因分析，支持写操作 + 人工审批
+3. **知识积累**：Skill 系统持续学习排障经验，Agent 越用越聪明
 
-和现有工具的区别：PagerDuty 只做告警通知不排查原因，HolmesGPT 会排查但没有团队协作和事件追踪，Kubiya 有 Agent 能力但闭源且贵。Orca 把 AI 排查 + 事件追踪 + 团队分工 + 知识积累统一在一个开源平台里。
+和现有工具的区别：PagerDuty 只做告警通知不排查原因，HolmesGPT 会排查但没有团队协作和知识积累，Kubiya 有 Agent 能力但闭源且贵。Orca 把 AI 排查 + 事件追踪 + 知识积累 + 写操作审批统一在一个开源平台里。
 
 ---
 
@@ -69,45 +69,97 @@ Orca 是一个开源的运维 Agent 平台，核心解决三个问题：
 用户交互层
 ├── Web 前端 (React) ─────────┐
 ├── 飞书机器人（通知+交互）─────┤
-├── MCP Server (对外暴露能力) ──┤
 └── OAuth / SSO ───────────────┤
                                 ▼
-                     REST API + WebSocket
+                     REST API + SSE
                                 │
                                 ▼
 Agent Core
-├── 事件路由器 ← 接收所有触发源的事件
-├── 调查管理器 ← 管理 Investigation 会话状态
+├── 事件路由器 ← 告警源事件分发
+├── 巡检调度器 ← Cron 定时主动检查
 ├── LLM 推理引擎 ← Agentic Loop + Function Calling
+├── 审批管理器 ← 写操作人工确认
 └── Skill 系统 ← Agent 渐进式记忆（按服务组织，持续学习）
         │
         ├── 触发插件（输入）
         │   ├── UptimeKuma / AlertManager / Grafana Webhook
         │   ├── 通用 Webhook（自定义解析）
+        │   ├── 定时巡检（Cron + 自然语言 prompt）
         │   └── 用户请求（Web 对话 / 飞书命令）
         │
         └── 工具层（执行）
-            ├── K8s SDK：client-go + metrics-server（只读诊断）
-            ├── Skill 工具：read_skill / update_skill_section（知识读写）
-            └── MCP 客户端：外部扩展（Cloudflare/FOFA/Grafana 等）
+            ├── K8s 只读：get_pods / logs / describe / events / node_status
+            ├── K8s 写操作：restart / scale / delete_pod / rollback / cordon（需审批）
+            ├── Bash：任意 shell 命令（需审批）
+            ├── Skill：read_skill / update_skill_section（知识读写）
+            └── MCP 客户端：外部扩展（Cloudflare / FOFA / Grafana 等）
 ```
 
 ---
 
-## 当前已实现
+## 已实现功能
 
-- [x] **Agent Core**：Event + Investigation + Event Router + 多轮 Agentic Loop
-- [x] **LLM Engine**：OpenAI / Anthropic 兼容，Function Calling，SSE 流式输出
-- [x] **Kubernetes 工具**：get_pods / get_pod_logs / describe_resource / get_events / get_node_status
-- [x] **Skill 系统**：Agent 渐进式披露记忆，Level 1 自动注入 → Level 2/3 按需读取 → 排查后自动更新经验
+### Agent 核心
+
+- [x] **Agentic Loop**：多轮 Function Calling，最多 20 轮迭代，SSE 流式输出
+- [x] **LLM Engine**：OpenAI / Anthropic 兼容，运行时热切换
+- [x] **Token 追踪**：每条消息记录输入/输出/缓存 token 消耗
+
+### Kubernetes 工具
+
+- [x] **只读诊断**：get_pods / get_pod_logs / describe_resource / get_events / get_node_status
+- [x] **写操作（需审批）**：restart_deployment / scale_deployment / delete_pod / rollback_deployment / cordon_node / uncordon_node
+- [x] **Bash（需审批）**：任意 shell 命令，AI 自主设置超时，输出截断 10KB
+- [x] **Metrics**：k8s.io/metrics 集群指标采集
+
+### 审批系统
+
+- [x] **Chat 内审批**：写操作自动弹确认/拒绝卡片，用户点击后 Agent 继续执行
+- [x] **SSE 实时推送**：审批请求通过 SSE 推给前端，ToolCallCard 内嵌审批按钮
+- [x] **审计记录**：PendingAction 表记录所有写操作审批状态
+
+### Skill 系统
+
+- [x] **渐进式披露**：Level 1 自动注入 → Level 2 按需读取 → Level 3 深度参考
+- [x] **持续学习**：Chat Agent 对话中学到知识自动更新 Skill
+- [x] **Skill 安装**：兼容 [SKILL.md 开放标准](https://agentskills.io)，从 GitHub 仓库安装社区技能
+- [x] **Knowledge Agent**：扫描集群自动生成服务文档 + Mermaid 架构图
+
+### 事件与巡检
+
 - [x] **触发器**：UptimeKuma / AlertManager / Grafana / 通用 Webhook
-- [x] **MCP Client**：外接 MCP Server 动态扩展工具（stdio + SSE + OAuth 2.1 PKCE）
-- [x] **飞书机器人**：事件/调查通知推送 + 交互命令（调查列表/查看/事件列表）+ WebSocket 长连接
-- [x] **专业 Dashboard**：节点状态 / 工作负载健康 / 异常 Pod / 命名空间资源 / Top 10 消耗
-- [x] **Web 前端**：Chat 对话 / Events 列表+详情 / Investigation 管理 / Skill 浏览器 + Mermaid 图
+- [x] **事件路由**：告警自动触发 Agent 排查，创建 Investigation 跟踪
+- [x] **定时巡检**：Cron 调度 + 自然语言 prompt，Agent 自主检查集群健康
+- [x] **巡检通知**：飞书推送巡检报告（正常/发现问题/失败）
+
+### Dashboard
+
+- [x] **集群资源**：CPU / 内存 / Pod 环形图，四档渐变配色
+- [x] **节点状态**：每节点 CPU / 内存进度条 + 异常条件标签
+- [x] **工作负载健康**：Deployment / StatefulSet / DaemonSet 就绪/降级/不可用
+- [x] **异常 Pod**：CrashLoopBackOff / ImagePullBackOff / Pending / 高重启
+- [x] **命名空间资源分布** + **CPU / 内存 Top 10**
+
+### 飞书机器人
+
+- [x] **通知推送**：事件 / 调查创建 / 调查解决 / 巡检报告
+- [x] **交互命令**：调查列表 / 查看详情 / 事件列表 / 帮助
+- [x] **WebSocket 长连接**：无需公网回调 URL
+
+### 前端
+
+- [x] **Chat 对话**：消息操作（复制 / 重新生成）+ Token 显示 + Investigation 引用
+- [x] **事件详情**：平铺式 Agent 处理过程展示
+- [x] **Skill 浏览器**：Tab 切换概述 / References / Scripts + Mermaid 渲染
+- [x] **代码高亮**：Shiki 语法高亮 + 复制按钮
+- [x] **移动端适配**：底部导航栏 + 面板切换
+
+### 部署与认证
+
+- [x] **零配置部署**：`kubectl apply -k` 一键安装
+- [x] **单镜像**：go:embed 前端静态文件
 - [x] **认证**：JWT + OAuth/OIDC（Authentik 等）
-- [x] **零配置部署**：`kubectl apply -k` 一键安装，Web 内完成所有配置
-- [x] **单镜像**：go:embed 前端静态文件，一个二进制搞定
+- [x] **MCP Client**：stdio + SSE + OAuth 2.1 PKCE
 
 ---
 
@@ -168,10 +220,12 @@ docker build -t orca:latest .
 | 前端 | React 19 + Vite 8 + Tailwind v4 |
 | LLM 框架 | CloudWeGo Eino |
 | MCP SDK | mark3labs/mcp-go |
+| Git 操作 | go-git（纯 Go，无需系统 git） |
 | K8s 指标 | k8s.io/metrics |
 | 数据库 | PostgreSQL |
 | K8s 交互 | client-go |
 | 飞书 SDK | larksuite/oapi-sdk-go v3 |
+| 调度 | robfig/cron/v3 |
 | 代码高亮 | Shiki |
 | 图表渲染 | Mermaid |
 | 部署 | Kubernetes（单镜像 Deployment） |
@@ -191,10 +245,8 @@ docker build -t orca:latest .
 ### Phase 2 — Agent Harness
 
 - 多 Agent 协调：Supervisor Agent（分诊）+ Analysis Agent（排查）
-- 工具执行审计（actions 表）
-- 写操作权限 + 人工审批流（飞书回复恢复）
-- 受限 Bash 工具（白名单 + 超时 + 审计）
-- 定时巡检（Patrol）
+- 工具执行审计 + Token 成本统计面板
+- IM Bot AI 对话（飞书群内直接排障）
 - MCP Server（对外暴露 Agent 能力）
 
 ### Phase 3 — 团队协作
@@ -207,7 +259,8 @@ docker build -t orca:latest .
 
 - 多集群支持 / Docker Compose 环境
 - 自适应巡检频率
-- 云厂商 MCP 接入 / Skill 市场
+- CEL 规则引擎（告警过滤 / 关联 / 去重）
+- 云厂商 MCP 接入
 
 ---
 

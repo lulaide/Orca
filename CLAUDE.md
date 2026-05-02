@@ -466,32 +466,33 @@ LLM 决定执行写操作（如 delete pod）时，不直接执行，而是：1)
 
 ## 开发路线
 
-### Phase 1 — MVP（当前阶段）
-
-目标：跑通"告警/请求 → 自动排查 → 团队看到结论"的核心链路。
+### Phase 1 — MVP（当前阶段，已完成）
 
 1. **Agent Core**：Event + Investigation + Event Router + 多轮 Agentic Loop
 2. **LLM Engine**：OpenAI / Anthropic 兼容，Function Calling，SSE 流式输出
-3. **K8s 工具**：get_pods / get_pod_logs / describe_resource / get_events / get_node_status（只读）+ k8s.io/metrics
-4. **Skill 系统**：渐进式披露记忆，Knowledge Agent 扫描生成，排查后自动更新经验
-5. **触发器**：UptimeKuma / AlertManager / Grafana / 通用 Webhook
-6. **飞书机器人**：事件/调查通知推送 + 交互命令（WebSocket 长连接）
-7. **专业 Dashboard**：节点状态 / 工作负载 / 异常 Pod / 命名空间资源 / Top 10
-8. **Web 前端**：Chat 对话 / Events / Investigation / Skill 浏览器 + Mermaid 图 / 代码高亮
-9. **认证**：JWT + OAuth/OIDC（Authentik 等）
-10. **MCP Client**：外接 MCP Server（stdio + SSE + OAuth 2.1 PKCE）
-11. **零配置部署**：kubectl apply -k 一键安装，Web 内完成所有配置
-12. **单镜像**：go:embed 前端静态文件，移动端适配
+3. **K8s 只读工具**：get_pods / get_pod_logs / describe_resource / get_events / get_node_status + k8s.io/metrics
+4. **K8s 写操作**：restart / scale / delete_pod / rollback / cordon / uncordon（需 Chat 内审批）
+5. **Bash 工具**：任意 shell 命令执行（需 Chat 内审批），AI 自主设置超时
+6. **审批系统**：PendingAction + SSE 推送审批卡片 + ToolCallCard 内嵌确认/拒绝
+7. **Skill 系统**：渐进式披露记忆（Level 1/2/3），Knowledge Agent 扫描生成，Chat Agent 持续学习
+8. **Skill 安装**：兼容 SKILL.md 开放标准，go-git 内存 clone，GitHub 仓库安装
+9. **触发器**：UptimeKuma / AlertManager / Grafana / 通用 Webhook
+10. **定时巡检**：Cron 调度 + 自然语言 prompt + 独立 Agent Loop + 飞书巡检报告
+11. **飞书机器人**：事件/调查/巡检通知推送 + 交互命令 + WebSocket 长连接
+12. **专业 Dashboard**：节点状态 / 工作负载 / 异常 Pod / 命名空间资源 / Top 10
+13. **Web 前端**：Chat（消息操作 + Token 显示）/ Events（平铺式）/ Investigation / Skill 浏览器 + Mermaid / 代码高亮
+14. **认证**：JWT + OAuth/OIDC（Authentik 等）
+15. **MCP Client**：外接 MCP Server（stdio + SSE + OAuth 2.1 PKCE）
+16. **Token 追踪**：每条消息记录 prompt/completion/cached tokens
+17. **零配置部署**：kubectl apply -k 一键安装，单镜像（go:embed），移动端适配
 
 ### Phase 2 — Agent Harness
 
-- 多 Agent 协调：Supervisor Agent（分诊）+ Analysis Agent（排查）
-- 工具执行审计（actions 表）
-- 写操作权限 + 人工审批流（request_human_input + 飞书回复恢复）
-- 受限 Bash 工具（白名单 + 超时 + 审计）
-- 定时巡检（Patrol）：自然语言 prompt + cron 调度 + 自动创建 Investigation
+- 多 Agent 协调：Supervisor Agent（分诊 + 事件去重）+ Analysis Agent（排查）
+- IM Bot AI 对话（飞书群内直接排障 + 审批回复）
+- 工具执行审计 + Token 成本统计面板
 - MCP Server（对外暴露 Agent 能力）
-- Token 追踪 + 成本控制
+- CEL 规则引擎（告警过滤 / 关联 / 去重）
 
 ### Phase 3 — 团队协作
 

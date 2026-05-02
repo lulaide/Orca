@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0](https://github.com/lulaide/Orca/compare/v0.5.0...v0.6.0) (2026-05-02)
+
+
+### Features
+
+* K8s 写操作 + Bash 工具 + Chat 审批流 ([cd310ea](https://github.com/lulaide/Orca/commit/cd310ea8fb75966e0eaa6a9086121e14f29950cb))
+* Token 追踪 + 消息操作按钮（复制/重新生成） ([f483070](https://github.com/lulaide/Orca/commit/f48307047e91fcbbf3c054e3b4d98a20ace0ef84))
+* 定时巡检（Patrol）— 独立 Agent Loop + 飞书通知 ([55b878f](https://github.com/lulaide/Orca/commit/55b878fc15064172d8b0fe2a97455eddf8829905))
+
+
+### Bug Fixes
+
+* **patrol:** 巡检通知误判"无异常"为有问题 ([2a406c4](https://github.com/lulaide/Orca/commit/2a406c4862e08c826f90b1119cce4b33b44297de))
+
 ## [0.5.0](https://github.com/lulaide/Orca/compare/v0.4.0...v0.5.0) (2026-05-01)
 
 

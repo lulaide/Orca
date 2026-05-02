@@ -898,6 +898,18 @@ export async function listPatrolRuns(id: string): Promise<PatrolRun[]> {
   return res.json()
 }
 
+// ---- Action Approval ----
+
+export async function approveAction(id: string): Promise<void> {
+  const res = await authFetch(`/api/actions/${id}/approve`, { method: 'POST' })
+  if (!res.ok) throw new Error(`approve: ${res.status}`)
+}
+
+export async function rejectAction(id: string): Promise<void> {
+  const res = await authFetch(`/api/actions/${id}/reject`, { method: 'POST' })
+  if (!res.ok) throw new Error(`reject: ${res.status}`)
+}
+
 // ---- MCP Connections ----
 
 export type MCPTransport = 'stdio' | 'sse'
@@ -1003,6 +1015,7 @@ export type ChatStreamEvent =
   | { type: 'message'; message: ChatMessage }
   | { type: 'done'; conversation_id: string; iterations: number; prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
   | { type: 'error'; error: string }
+  | { type: 'approval_required'; id: string; tool_name: string; description: string; risk: string }
 
 export interface StreamChatHandlers {
   onEvent: (ev: ChatStreamEvent) => void
@@ -1071,6 +1084,9 @@ export async function streamChat(
     } else if (event === 'error') {
       const d = data as { error?: string }
       onEvent({ type: 'error', error: d.error ?? 'unknown error' })
+    } else if (event === 'approval_required') {
+      const d = data as { id: string; tool_name: string; description: string; risk: string }
+      onEvent({ type: 'approval_required', ...d })
     }
   }
 

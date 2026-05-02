@@ -62,9 +62,10 @@ interface AssistantTurnProps {
   toolOutputs: Record<string, string>
   onRegenerate?: () => void
   isLastTurn?: boolean
+  pendingApproval?: { id: string; tool_name: string; description: string; risk: string } | null
 }
 
-export function AssistantTurn({ messages, toolOutputs, onRegenerate, isLastTurn }: AssistantTurnProps) {
+export function AssistantTurn({ messages, toolOutputs, onRegenerate, isLastTurn, pendingApproval }: AssistantTurnProps) {
   const [copied, setCopied] = useState(false)
 
   // 从最后一条有 content 的消息提取文本和 token
@@ -94,7 +95,7 @@ export function AssistantTurn({ messages, toolOutputs, onRegenerate, isLastTurn 
       </div>
       <div className="space-y-1" data-assistant-content="true">
         {messages.map((m) => (
-          <AssistantSegment key={m.id} message={m} toolOutputs={toolOutputs} />
+          <AssistantSegment key={m.id} message={m} toolOutputs={toolOutputs} pendingApproval={pendingApproval} />
         ))}
       </div>
       {/* 操作栏 */}
@@ -261,9 +262,11 @@ const markdownComponents: Components = {
 function AssistantSegment({
   message,
   toolOutputs,
+  pendingApproval,
 }: {
   message: ChatMessage
   toolOutputs: Record<string, string>
+  pendingApproval?: { id: string; tool_name: string; description: string; risk: string } | null
 }) {
   const hasText = message.content.length > 0
   const hasTools = message.tool_calls && message.tool_calls.length > 0
@@ -283,7 +286,8 @@ function AssistantSegment({
             tc.function.name === 'create_investigation' ? (
               <InvestigationRefCard key={tc.id} toolCall={tc} output={toolOutputs[tc.id]} />
             ) : (
-              <ToolCallCard key={tc.id} toolCall={tc} output={toolOutputs[tc.id]} />
+              <ToolCallCard key={tc.id} toolCall={tc} output={toolOutputs[tc.id]}
+                pendingApproval={pendingApproval?.tool_name === tc.function.name ? pendingApproval : undefined} />
             ),
           )}
         </div>

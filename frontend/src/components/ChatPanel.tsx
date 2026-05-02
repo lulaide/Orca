@@ -87,6 +87,7 @@ export function ChatPanel({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [pendingApproval, setPendingApproval] = useState<{ id: string; tool_name: string; description: string; risk: string } | null>(null)
   const [quoteSel, setQuoteSel] = useState<{ text: string; top: number; left: number } | null>(null)
   const [quoteDraft, setQuoteDraft] = useState<string | null>(null)
   // 本轮发送前已选中的引用
@@ -190,7 +191,10 @@ export function ChatPanel({
             if (!conversationId && !createdId && ev.message.conversation_id) {
               createdId = ev.message.conversation_id
             }
+          } else if (ev.type === 'approval_required') {
+            setPendingApproval({ id: ev.id, tool_name: ev.tool_name, description: ev.description, risk: ev.risk })
           } else if (ev.type === 'done') {
+            setPendingApproval(null)
             if (createdId) onConversationCreated(createdId)
             onConversationUpdated()
             // 刷新顶部 chip bar（Agent 可能调了 create_investigation）
@@ -441,6 +445,7 @@ export function ChatPanel({
                 key={t.messages[0].id}
                 messages={t.messages}
                 toolOutputs={toolOutputs}
+                pendingApproval={idx === turns.length - 1 ? pendingApproval : null}
                 isLastTurn={idx === turns.length - 1}
                 onRegenerate={idx === turns.length - 1 && !loading ? () => {
                   // 重新生成：找到最后一条 user 消息重新发送

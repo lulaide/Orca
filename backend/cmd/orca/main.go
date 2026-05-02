@@ -51,6 +51,7 @@ func main() {
 		&core.Skill{},
 		&core.PatrolConfig{},
 		&core.PatrolRun{},
+		&core.PendingAction{},
 		&core.User{},
 	); err != nil {
 		log.Fatalf("Migration: %v", err)
@@ -102,9 +103,14 @@ func main() {
 	tools.DB = gormDB
 	reg := tools.NewRegistry()
 	tools.RegisterKubernetesTools(reg)
+	tools.RegisterKubernetesWriteTools(reg)
+	tools.RegisterBashTool(reg)
 	tools.RegisterInvestigationTools(reg)
 	tools.RegisterSkillTools(reg)
 	tools.RegisterSkillWriteTools(reg)
+
+	// 审批管理器
+	tools.ApprovalMgr = tools.NewApprovalManager(gormDB)
 	log.Printf("Tools: registered %v", reg.Names())
 
 	// 6.5 MCP Client Manager（外接 MCP Server 的工具）

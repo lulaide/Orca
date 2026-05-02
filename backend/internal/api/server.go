@@ -140,6 +140,10 @@ func NewRouter(d *Deps) *gin.Engine {
 		api.POST("/plugins/:name/regenerate-token", d.handleRegeneratePluginToken)
 		api.GET("/plugins/:name/token", d.handleGetPluginToken)
 
+		// 操作审批
+		api.POST("/actions/:id/approve", d.handleApproveAction)
+		api.POST("/actions/:id/reject", d.handleRejectAction)
+
 		// 知识库扫描
 		api.POST("/knowledge/scan", d.handleScanCluster)
 		api.GET("/knowledge/scan/stream", d.handleScanStream)

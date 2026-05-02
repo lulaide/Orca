@@ -9,15 +9,13 @@ import "context"
 
 type ctxKey int
 
-const (
-	// ConversationIDKey 标识当前 LLM 调用所属的对话 ID。
-	// 由 api/handlers.go 的 handleChat 在调 Engine.Run 前注入。
-	ConversationIDKey ctxKey = iota
+// SSEEmitFunc 是 SSE 推送函数类型。写工具在阻塞等审批前用它推事件给前端。
+type SSEEmitFunc func(event string, data any) error
 
-	// EventIDKey 标识当前 LLM 调用所属的 Event ID（自动值守模式）。
-	// 由 core/router.go 的 runAgent 在启动 Agent Loop 前注入；
-	// create_investigation 工具据此把新建的调查回链到事件。
+const (
+	ConversationIDKey ctxKey = iota
 	EventIDKey
+	SSEEmitKey // Chat 模式注入 SSE emit 函数
 )
 
 // ConversationIDFromContext 从 ctx 读取对话 ID；未注入时返回空串。
@@ -40,4 +38,15 @@ func EventIDFromContext(ctx context.Context) string {
 		return v
 	}
 	return ""
+}
+
+// SSEEmitFromContext 从 ctx 读取 SSE 推送函数；未注入时返回 nil。
+func SSEEmitFromContext(ctx context.Context) SSEEmitFunc {
+	if ctx == nil {
+		return nil
+	}
+	if v, ok := ctx.Value(SSEEmitKey).(SSEEmitFunc); ok {
+		return v
+	}
+	return nil
 }

@@ -172,6 +172,21 @@ type PatrolRun struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
+// PendingAction 写操作审批记录。Agent 调写工具时创建，等用户确认后执行。
+type PendingAction struct {
+	ID             string     `gorm:"primaryKey" json:"id"`
+	ConversationID string     `json:"conversation_id"`
+	ToolName       string     `json:"tool_name"`
+	ToolInput      string     `gorm:"type:text" json:"tool_input"`
+	Description    string     `json:"description"`
+	Risk           string     `gorm:"default:low" json:"risk"`
+	Status         string     `gorm:"default:pending" json:"status"` // pending | approved | rejected
+	ToolOutput     string     `gorm:"type:text" json:"tool_output"`
+	ApprovedBy     string     `json:"approved_by"`
+	CreatedAt      time.Time  `json:"created_at"`
+	ResolvedAt     *time.Time `json:"resolved_at"`
+}
+
 // MCPConnection 是一个外部 MCP Server 的连接配置。
 // Orca 作为 MCP Client 连接到这些 Server，发现并注册它们提供的工具，
 // 让 Agent 在推理时能调用外部能力（如 Cloudflare DNS、Grafana 查询等）。

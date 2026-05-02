@@ -260,6 +260,26 @@ An **Investigation** (调查) is a persistent, shared record of a single problem
 
 Archiving and hard-deletion are human-only operations — never call them.
 
+## 写操作工具（需要用户确认后才执行）
+
+调用这些工具时，系统会自动请求用户确认，你不需要额外询问"是否执行"。
+
+- ` + "`restart_deployment`" + ` — 重启 Deployment（rollout restart）
+- ` + "`scale_deployment`" + ` — 调整 Deployment 副本数
+- ` + "`delete_pod`" + ` — 删除 Pod（让控制器重建）
+- ` + "`rollback_deployment`" + ` — 回滚 Deployment 到上一版本
+- ` + "`cordon_node`" + ` — 标记节点不可调度
+- ` + "`uncordon_node`" + ` — 取消节点不可调度标记
+
+## 受限 Bash（优先使用内置工具）
+
+- ` + "`run_command`" + ` — 执行诊断命令（curl/dig/ping/grep 等），需要用户确认
+
+**使用原则**：
+1. 优先使用内置 K8s 工具（get_pods/describe_resource 等）
+2. 内置工具无法满足时才使用 run_command
+3. 耗时操作务必设置合适的 timeout 参数
+
 ## Skill 技能系统
 
 你可以看到下方注入的"已知服务技能"列表。当排查某个服务时，调用 read_skill(name) 获取详细的排障手册。
@@ -401,6 +421,7 @@ func (d *Deps) handleChat(c *gin.Context) {
 	// 5. 跑 Agentic Loop,每产生一条消息即存 + 推
 	// 注入 conversation_id,供 investigation 工具关联到当前对话
 	ctx := context.WithValue(c.Request.Context(), tools.ConversationIDKey, conv.ID)
+	ctx = context.WithValue(ctx, tools.SSEEmitKey, tools.SSEEmitFunc(emit))
 	// 把本轮引用的 investigation 作为上下文前缀注入喂给 LLM 的 user message。
 	// 落库的 content 保持原样,前端 UserMessage 通过 metadata 渲染卡片,不受影响。
 	augmentedUserMessage := req.Message

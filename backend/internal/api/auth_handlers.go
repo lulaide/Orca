@@ -191,6 +191,12 @@ func (d *Deps) handleOAuthCallback(c *gin.Context) {
 	providerName := cfg.ProviderName
 	if providerName == "" { providerName = "oidc" }
 
+	// 检查用户是否在允许的组里
+	if !userInfo.IsInAllowedGroups(cfg.AllowedGroups) {
+		c.Data(200, "text/html; charset=utf-8", []byte(`<h2>登录失败</h2><p>你不在允许的用户组中，无权访问 Orca。</p>`))
+		return
+	}
+
 	var user core.User
 	if d.DB.First(&user, "provider = ? AND provider_id = ?", providerName, userInfo.Sub).Error != nil {
 		username := userInfo.Username
@@ -200,10 +206,9 @@ func (d *Deps) handleOAuthCallback(c *gin.Context) {
 		if d.DB.First(&dup, "username = ?", username).Error == nil {
 			username = username + "_" + userInfo.Sub[:8]
 		}
-		role := cfg.DefaultRole
-		if role == "" { role = "member" }
+		// SSO 用户直接是 admin（Orca 直接操作集群，只有管理员身份）
 		user = core.User{
-			ID: uuid.NewString(), Username: username, Role: role,
+			ID: uuid.NewString(), Username: username, Role: "admin",
 			Provider: providerName, ProviderID: userInfo.Sub,
 			Email: userInfo.Email, Avatar: userInfo.Picture,
 		}
@@ -229,7 +234,7 @@ func (d *Deps) handleGetOAuthConfig(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"enabled": cfg.Enabled, "provider_name": cfg.ProviderName,
 		"issuer_url": cfg.IssuerURL, "client_id": cfg.ClientID,
-		"scopes": cfg.Scopes, "default_role": cfg.DefaultRole,
+		"scopes": cfg.Scopes, "groups_claim": cfg.GroupsClaim, "allowed_groups": cfg.AllowedGroups,
 	})
 }
 

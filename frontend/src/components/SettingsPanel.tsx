@@ -267,7 +267,8 @@ function OAuthSection() {
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [scopes, setScopes] = useState('openid profile email')
-  const [defaultRole, setDefaultRole] = useState('member')
+  const [groupsClaim, setGroupsClaim] = useState('groups')
+  const [allowedGroups, setAllowedGroups] = useState('')
   const [enabled, setEnabled] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -282,7 +283,8 @@ function OAuthSection() {
       setIssuerUrl(cfg.issuer_url || '')
       setClientId(cfg.client_id || '')
       setScopes(cfg.scopes || 'openid profile email')
-      setDefaultRole(cfg.default_role || 'member')
+      setGroupsClaim(cfg.groups_claim || 'groups')
+      setAllowedGroups(cfg.allowed_groups || '')
       setEnabled(cfg.enabled)
     }
     setClientSecret('')
@@ -295,7 +297,7 @@ function OAuthSection() {
     try {
       const newCfg: OAuthConfig = {
         enabled, provider_name: providerName, issuer_url: issuerUrl,
-        client_id: clientId, scopes, default_role: defaultRole,
+        client_id: clientId, scopes, groups_claim: groupsClaim, allowed_groups: allowedGroups,
       }
       if (clientSecret) newCfg.client_secret = clientSecret
       else if (cfg?.client_id === clientId) {
@@ -338,11 +340,9 @@ function OAuthSection() {
                 <input value={providerName} onChange={(e) => setProviderName(e.target.value)}
                   placeholder="Authentik" className={INPUT_CLS} />
               </Field>
-              <Field label="默认角色">
-                <select value={defaultRole} onChange={(e) => setDefaultRole(e.target.value)} className={INPUT_CLS}>
-                  <option value="member">member</option>
-                  <option value="admin">admin</option>
-                </select>
+              <Field label="Groups Claim">
+                <input value={groupsClaim} onChange={(e) => setGroupsClaim(e.target.value)}
+                  placeholder="groups" className={INPUT_CLS} />
               </Field>
             </div>
             <Field label="Issuer URL（OIDC 自动发现）">
@@ -360,6 +360,10 @@ function OAuthSection() {
             </div>
             <Field label="Scopes">
               <input value={scopes} onChange={(e) => setScopes(e.target.value)} className={INPUT_CLS} />
+            </Field>
+            <Field label="允许的组（逗号分隔，留空不限制）">
+              <input value={allowedGroups} onChange={(e) => setAllowedGroups(e.target.value)}
+                placeholder="运维部, SRE" className={INPUT_CLS} />
             </Field>
             <div className="flex gap-2">
               <button type="submit" disabled={busy}

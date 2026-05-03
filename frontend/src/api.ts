@@ -36,7 +36,8 @@ export interface OAuthConfig {
   client_id: string
   client_secret?: string
   scopes: string
-  default_role: string
+  groups_claim: string
+  allowed_groups: string
 }
 
 export async function getOAuthConfig(): Promise<OAuthConfig> {

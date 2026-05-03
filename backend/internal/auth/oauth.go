@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"strings"
 	"fmt"
 	"sync"
 
@@ -18,25 +19,52 @@ import (
 
 // OAuthProviderConfig 是 SSO 提供商的配置，存在 settings 表 key="auth_oauth"。
 type OAuthProviderConfig struct {
-	Enabled      bool   `json:"enabled"`
-	ProviderName string `json:"provider_name"` // 显示名，如 "Authentik"
-	IssuerURL    string `json:"issuer_url"`    // OIDC 自动发现（优先）
-	AuthURL      string `json:"auth_url"`      // 手动：授权端点
-	TokenURL     string `json:"token_url"`     // 手动：令牌端点
-	UserInfoURL  string `json:"userinfo_url"`  // 手动：用户信息端点
-	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"client_secret"`
-	Scopes       string `json:"scopes"`       // 空格分隔，默认 "openid profile email"
-	DefaultRole  string `json:"default_role"` // "member" | "admin"
+	Enabled       bool   `json:"enabled"`
+	ProviderName  string `json:"provider_name"`  // 显示名，如 "Authentik"
+	IssuerURL     string `json:"issuer_url"`     // OIDC 自动发现（优先）
+	AuthURL       string `json:"auth_url"`       // 手动：授权端点
+	TokenURL      string `json:"token_url"`      // 手动：令牌端点
+	UserInfoURL   string `json:"userinfo_url"`   // 手动：用户信息端点
+	ClientID      string `json:"client_id"`
+	ClientSecret  string `json:"client_secret"`
+	Scopes        string `json:"scopes"`         // 空格分隔，默认 "openid profile email"
+	GroupsClaim   string `json:"groups_claim"`   // groups claim 名称，默认 "groups"
+	AllowedGroups string `json:"allowed_groups"` // 允许登录的组（逗号分隔），留空不限制
 }
 
 // OAuthUserInfo 是从 SSO 用户信息端点获取的用户资料。
 type OAuthUserInfo struct {
-	Sub      string `json:"sub"`
-	Email    string `json:"email"`
-	Name     string `json:"name"`
-	Username string `json:"preferred_username"`
-	Picture  string `json:"picture"`
+	Sub      string   `json:"sub"`
+	Email    string   `json:"email"`
+	Name     string   `json:"name"`
+	Username string   `json:"preferred_username"`
+	Picture  string   `json:"picture"`
+	Groups   []string `json:"groups"`
+}
+
+// IsInAllowedGroups 检查用户是否在允许的组里。allowedGroups 为空表示不限制。
+func (u *OAuthUserInfo) IsInAllowedGroups(allowedGroups string) bool {
+	if allowedGroups == "" {
+		return true
+	}
+	allowed := make(map[string]bool)
+	for _, g := range strings.Split(allowedGroups, ",") {
+		g = strings.TrimSpace(g)
+		if g != "" {
+			allowed[g] = true
+		}
+	}
+	if len(allowed) == 0 {
+		return true
+	}
+	for _, g := range u.Groups {
+		// 支持完整路径匹配和名称匹配（如 "/运维部" 和 "运维部" 都行）
+		name := strings.TrimPrefix(g, "/")
+		if allowed[g] || allowed[name] {
+			return true
+		}
+	}
+	return false
 }
 
 // PendingOAuthLogin 暂存 OAuth 登录流程中间状态。
@@ -173,6 +201,11 @@ func (m *OAuthManager) buildOAuth2Config(ctx context.Context, cfg *OAuthProvider
 }
 
 func (m *OAuthManager) fetchUserInfo(ctx context.Context, cfg *OAuthProviderConfig, token *oauth2.Token) (*OAuthUserInfo, error) {
+	groupsClaim := cfg.GroupsClaim
+	if groupsClaim == "" {
+		groupsClaim = "groups"
+	}
+
 	// 优先用 OIDC provider 的 UserInfo 端点
 	if cfg.IssuerURL != "" {
 		provider, err := oidc.NewProvider(ctx, cfg.IssuerURL)
@@ -183,6 +216,11 @@ func (m *OAuthManager) fetchUserInfo(ctx context.Context, cfg *OAuthProviderConf
 		if err != nil {
 			return nil, err
 		}
+		// 先解析到 raw map 以提取自定义 groups claim
+		var raw map[string]any
+		if err := userInfo.Claims(&raw); err != nil {
+			return nil, err
+		}
 		var info OAuthUserInfo
 		if err := userInfo.Claims(&info); err != nil {
 			return nil, err
@@ -191,6 +229,7 @@ func (m *OAuthManager) fetchUserInfo(ctx context.Context, cfg *OAuthProviderConf
 		if info.Email == "" {
 			info.Email = userInfo.Email
 		}
+		info.Groups = extractGroups(raw, groupsClaim)
 		return &info, nil
 	}
 
@@ -204,11 +243,37 @@ func (m *OAuthManager) fetchUserInfo(ctx context.Context, cfg *OAuthProviderConf
 		return nil, err
 	}
 	defer resp.Body.Close()
-	var info OAuthUserInfo
-	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+	var raw map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
 		return nil, err
 	}
+	b, _ := json.Marshal(raw)
+	var info OAuthUserInfo
+	json.Unmarshal(b, &info)
+	info.Groups = extractGroups(raw, groupsClaim)
 	return &info, nil
+}
+
+// extractGroups 从 userinfo 原始 claims 里提取 groups。
+func extractGroups(claims map[string]any, claimName string) []string {
+	val, ok := claims[claimName]
+	if !ok {
+		return nil
+	}
+	switch v := val.(type) {
+	case []any:
+		groups := make([]string, 0, len(v))
+		for _, g := range v {
+			if s, ok := g.(string); ok {
+				groups = append(groups, s)
+			}
+		}
+		return groups
+	case []string:
+		return v
+	default:
+		return nil
+	}
 }
 
 func splitScopes(s string) []string {

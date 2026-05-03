@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0](https://github.com/lulaide/Orca/compare/v0.6.0...v0.7.0) (2026-05-03)
+
+
+### Features
+
+* **auth:** OIDC 组过滤 — 只允许指定组登录 ([20143d1](https://github.com/lulaide/Orca/commit/20143d18b444c98b30294069db3c275047ab9a2c))
+
+
+### Bug Fixes
+
+* **patrol:** 巡检失败通知显示错误原因 ([a549850](https://github.com/lulaide/Orca/commit/a54985081778724c8b9eb3da961f24f3bb28be51))
+
 ## [0.6.0](https://github.com/lulaide/Orca/compare/v0.5.0...v0.6.0) (2026-05-02)
 
 

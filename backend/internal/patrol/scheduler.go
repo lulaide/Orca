@@ -175,7 +175,7 @@ func (s *Scheduler) runPatrol(cfg *core.PatrolConfig) {
 	if err != nil {
 		log.Printf("Patrol: %s failed: %v", cfg.Name, err)
 		core.UpdatePatrolRun(s.db, run.ID, "failed", duration, err.Error())
-		s.sendNotification(cfg, "failed", "", duration)
+		s.sendNotification(cfg, "failed", err.Error(), duration)
 		return
 	}
 
@@ -216,11 +216,20 @@ func (s *Scheduler) sendNotification(cfg *core.PatrolConfig, status, summary str
 		color = "blue"
 	}
 
-	content := briefSummary
-	if content == "" {
-		content = summary
-		if len(content) > 200 {
-			content = content[:200] + "…"
+	var content string
+	if status == "failed" {
+		// 失败时显示错误原因
+		content = "**原因**: " + summary
+		if len(content) > 300 {
+			content = content[:300] + "…"
+		}
+	} else {
+		content = briefSummary
+		if content == "" {
+			content = summary
+			if len(content) > 200 {
+				content = content[:200] + "…"
+			}
 		}
 	}
 	content += fmt.Sprintf("\n\n耗时: %ds", duration)

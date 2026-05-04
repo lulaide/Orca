@@ -15,7 +15,8 @@ type SSEEmitFunc func(event string, data any) error
 const (
 	ConversationIDKey ctxKey = iota
 	EventIDKey
-	SSEEmitKey // Chat 模式注入 SSE emit 函数
+	SSEEmitKey      // Chat 模式注入 SSE emit 函数
+	PreApprovedKey  // Executor 注入，绕过写工具审批
 )
 
 // ConversationIDFromContext 从 ctx 读取对话 ID；未注入时返回空串。

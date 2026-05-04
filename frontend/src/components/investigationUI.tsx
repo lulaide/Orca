@@ -40,16 +40,30 @@ export function StatusBadge({ status }: { status: InvestigationStatus }) {
     investigating: '排查中',
     resolved: '已解决',
     stale: '已过期',
+    exploring: '诊断中',
+    explored: '诊断完成',
+    generating: '方案生成中',
+    evaluating: '方案评审中',
+    awaiting_approval: '待确认',
+    executing: '执行中',
+    verifying: '验证中',
   }
   const cls: Record<InvestigationStatus, string> = {
     open: 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] border-[var(--color-accent)]/20',
     investigating: 'bg-[var(--color-warn)]/10 text-[var(--color-warn)] border-[var(--color-warn)]/20',
     resolved: 'bg-[var(--color-ok)]/10 text-[var(--color-ok)] border-[var(--color-ok)]/20',
     stale: 'bg-[var(--color-surface-2)] text-[var(--color-text-dim)] border-[var(--color-border)]',
+    exploring: 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] border-[var(--color-accent)]/20',
+    explored: 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] border-[var(--color-accent)]/20',
+    generating: 'bg-[var(--color-warn)]/10 text-[var(--color-warn)] border-[var(--color-warn)]/20',
+    evaluating: 'bg-[var(--color-warn)]/10 text-[var(--color-warn)] border-[var(--color-warn)]/20',
+    awaiting_approval: 'bg-[var(--color-danger)]/10 text-[var(--color-danger)] border-[var(--color-danger)]/20',
+    executing: 'bg-[var(--color-warn)]/10 text-[var(--color-warn)] border-[var(--color-warn)]/20',
+    verifying: 'bg-[var(--color-warn)]/10 text-[var(--color-warn)] border-[var(--color-warn)]/20',
   }
   return (
-    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 ${cls[status]}`}>
-      {label[status]}
+    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 ${cls[status] || cls.open}`}>
+      {label[status] || status}
     </span>
   )
 }

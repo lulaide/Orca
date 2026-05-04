@@ -7,6 +7,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/lulaide/orca/internal/agents"
 	"github.com/lulaide/orca/internal/api"
 	"github.com/lulaide/orca/internal/auth"
 	"github.com/lulaide/orca/internal/config"
@@ -111,6 +112,7 @@ func main() {
 
 	// 审批管理器
 	tools.ApprovalMgr = tools.NewApprovalManager(gormDB)
+	tools.GlobalRegistry = reg
 	log.Printf("Tools: registered %v", reg.Names())
 
 	// 6.5 MCP Client Manager（外接 MCP Server 的工具）
@@ -121,6 +123,9 @@ func main() {
 
 	// 7. Agent Engine
 	engine := llm.NewEngine(llmMgr, reg)
+
+	// 7.5 注册多 Agent 流水线（Explorer → Generator → Evaluator）
+	agents.Register(engine)
 
 	// 8. Trigger 插件注册表（编译期注册所有已知插件类型）
 	triggerReg := triggers.NewRegistry()

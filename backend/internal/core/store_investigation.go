@@ -13,20 +13,54 @@ import (
 // ErrInvestigationArchived 在对已归档 investigation 执行写操作时返回。
 var ErrInvestigationArchived = errors.New("investigation is archived; unarchive it first")
 
-// StatusOpen / StatusInvestigating / StatusResolved / StatusStale 是 Investigation.Status 的合法值。
+// StatusChangeHook 是状态变更回调函数类型。
+// 在 UpdateInvestigationStatus 内部调用，用于触发下一个 Agent。
+// 参数: db, investigation, oldStatus, newStatus。
+type StatusChangeHook func(db *gorm.DB, inv *Investigation, oldStatus, newStatus string)
+
+// onStatusChange 是全局状态变更回调，由 agents 包在启动时注册。
+var onStatusChange StatusChangeHook
+
+// RegisterStatusChangeHook 注册状态变更回调。agents 包调用此函数注入触发逻辑。
+func RegisterStatusChangeHook(hook StatusChangeHook) {
+	onStatusChange = hook
+}
+
+// Investigation.Status 的合法值。
 const (
-	StatusOpen          = "open"
-	StatusInvestigating = "investigating"
-	StatusResolved      = "resolved"
-	StatusStale         = "stale"
+	StatusOpen             = "open"
+	StatusInvestigating    = "investigating"
+	StatusResolved         = "resolved"
+	StatusStale            = "stale"
+	// 多 Agent 流水线状态
+	StatusExploring        = "exploring"         // Explorer 正在诊断
+	StatusExplored         = "explored"           // Explorer 完成诊断
+	StatusGenerating       = "generating"         // Generator 正在生成方案
+	StatusEvaluating       = "evaluating"         // Evaluator 正在评审
+	StatusAwaitingApproval = "awaiting_approval"  // 等待用户确认
+	StatusExecuting        = "executing"           // 执行修复方案
+	StatusVerifying        = "verifying"           // Evaluator 验证修复结果
 )
 
 // 合法的 severity / source / entry.type 集合（只做防御性校验，便于排错）。
 var (
-	validSeverities  = map[string]struct{}{"critical": {}, "warning": {}, "info": {}}
-	validStatuses    = map[string]struct{}{StatusOpen: {}, StatusInvestigating: {}, StatusResolved: {}, StatusStale: {}}
-	validEntryTypes  = map[string]struct{}{"discovery": {}, "action": {}, "resolution": {}, "note": {}}
-	manualEntryTypes = map[string]struct{}{"discovery": {}, "action": {}, "note": {}} // resolution 只由 resolve 工具写
+	validSeverities = map[string]struct{}{"critical": {}, "warning": {}, "info": {}}
+	validStatuses   = map[string]struct{}{
+		StatusOpen: {}, StatusInvestigating: {}, StatusResolved: {}, StatusStale: {},
+		StatusExploring: {}, StatusExplored: {}, StatusGenerating: {},
+		StatusEvaluating: {}, StatusAwaitingApproval: {}, StatusExecuting: {}, StatusVerifying: {},
+	}
+	validEntryTypes = map[string]struct{}{
+		"discovery": {}, "action": {}, "resolution": {}, "note": {},
+		"report": {}, "solution": {}, "review": {}, "verification": {}, "status_change": {},
+	}
+	// manualEntryTypes: 人工可写的类型。resolution/report/solution/review/verification/status_change 由 Agent 写。
+	manualEntryTypes = map[string]struct{}{"discovery": {}, "action": {}, "note": {}}
+	// pipelineStatuses 是流水线中的"活跃"状态，ViewActive 查询应包含它们。
+	pipelineStatuses = []string{
+		StatusOpen, StatusInvestigating, StatusExploring, StatusExplored,
+		StatusGenerating, StatusEvaluating, StatusAwaitingApproval, StatusExecuting, StatusVerifying,
+	}
 )
 
 // CreateInvestigationInput 建单入参。severity 为空时默认 info；relatedServices 可空。
@@ -116,7 +150,7 @@ func ListInvestigations(db *gorm.DB, opts ListInvestigationsOpts) ([]Investigati
 
 	switch opts.View {
 	case ViewActive:
-		q = q.Where("status IN ?", []string{StatusOpen, StatusInvestigating}).
+		q = q.Where("status IN ?", pipelineStatuses).
 			Where("archived_at IS NULL")
 	case ViewResolved:
 		q = q.Where("status = ?", StatusResolved).Where("archived_at IS NULL")
@@ -210,6 +244,57 @@ func UpdateInvestigation(db *gorm.DB, id string, patch UpdateInvestigationPatch)
 	return GetInvestigation(db, id)
 }
 
+// UpdateInvestigationStatus 是 Agent 推进流水线状态的专用函数。
+// 自动记录 status_change entry，并触发 onStatusChange 回调。
+func UpdateInvestigationStatus(db *gorm.DB, id, newStatus, author string) (*Investigation, error) {
+	if _, ok := validStatuses[newStatus]; !ok {
+		return nil, errors.New("invalid status: " + newStatus)
+	}
+	inv, err := GetInvestigation(db, id)
+	if err != nil {
+		return nil, err
+	}
+	if inv.ArchivedAt != nil {
+		return nil, ErrInvestigationArchived
+	}
+	oldStatus := inv.Status
+	if oldStatus == newStatus {
+		return inv, nil
+	}
+
+	updates := map[string]any{"status": newStatus, "updated_at": time.Now()}
+	if newStatus == StatusResolved && inv.ResolvedAt == nil {
+		now := time.Now()
+		updates["resolved_at"] = now
+	}
+	if err := db.Model(&Investigation{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return nil, err
+	}
+
+	// 记录状态变更到时间线
+	entry := &InvestigationEntry{
+		ID:              uuid.NewString(),
+		InvestigationID: id,
+		Type:            "status_change",
+		Content:         oldStatus + " → " + newStatus,
+		Author:          author,
+		CreatedAt:       time.Now(),
+	}
+	_ = db.Create(entry).Error
+
+	fresh, err := GetInvestigation(db, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// 触发下一个 Agent
+	if onStatusChange != nil {
+		onStatusChange(db, fresh, oldStatus, newStatus)
+	}
+
+	return fresh, nil
+}
+
 // ArchiveInvestigation 归档单子。幂等：已归档的不改时间。
 func ArchiveInvestigation(db *gorm.DB, id string) error {
 	res := db.Model(&Investigation{}).
@@ -263,7 +348,7 @@ func CreateEntry(db *gorm.DB, invID, entryType, content, author string) (*Invest
 	}
 	if author != "ai" {
 		if _, ok := manualEntryTypes[entryType]; !ok {
-			return nil, errors.New("type=resolution is reserved; use resolve_investigation instead")
+			return nil, errors.New("type=" + entryType + " is reserved for AI agents")
 		}
 	}
 

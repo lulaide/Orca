@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
+  approveInvestigation,
   archiveInvestigation,
   createInvestigationEntry,
   getInvestigation,
   listInvestigationEntries,
+  rejectInvestigation,
   unarchiveInvestigation,
   updateInvestigation,
   type Investigation,
@@ -42,6 +44,8 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
   const [showAddEntry, setShowAddEntry] = useState(false)
   const [entryType, setEntryType] = useState<InvestigationEntryType>('note')
   const [entryContent, setEntryContent] = useState('')
+  const [showReject, setShowReject] = useState(false)
+  const [rejectFeedback, setRejectFeedback] = useState('')
   const [drawerOpen, setDrawerOpen] = useState<boolean>(() => {
     try {
       return localStorage.getItem(DRAWER_LS_KEY) === '1'
@@ -79,6 +83,16 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
     void reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+
+  // 流水线状态时自动轮询刷新（5s）
+  useEffect(() => {
+    if (!inv) return
+    const pipelineStatuses = ['exploring', 'explored', 'generating', 'evaluating', 'executing', 'verifying']
+    if (!pipelineStatuses.includes(inv.status)) return
+    const timer = setInterval(() => void reload(), 5000)
+    return () => clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inv?.status, id])
 
   if (err) {
     return (
@@ -194,6 +208,38 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
     }
   }
 
+  const doApprove = async () => {
+    setBusy(true)
+    try {
+      const u = await approveInvestigation(id)
+      setInv(u)
+      await reload()
+      onChanged()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '确认失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const doReject = async () => {
+    setBusy(true)
+    try {
+      const u = await rejectInvestigation(id, rejectFeedback)
+      setInv(u)
+      setShowReject(false)
+      setRejectFeedback('')
+      await reload()
+      onChanged()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '拒绝失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const isPipelineStatus = ['exploring', 'explored', 'generating', 'evaluating', 'awaiting_approval', 'executing', 'verifying'].includes(inv.status)
+
   return (
     <div className={`flex flex-col flex-1 min-h-0 h-full ${archived ? 'opacity-80' : ''}`}>
       <ConfirmDialog
@@ -306,7 +352,7 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
 
           {/* Meta */}
           <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-5 overflow-x-auto md:flex-wrap">
-            {archived ? (
+            {archived || isPipelineStatus ? (
               <StatusBadge status={inv.status} />
             ) : (
               <div className="relative">
@@ -421,6 +467,64 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
               </div>
             )}
           </section>
+
+          {/* 等待确认 banner */}
+          {inv.status === 'awaiting_approval' && (
+            <section className="mb-6 rounded-lg border border-[var(--color-warn)]/40 bg-[var(--color-warn)]/5 px-5 py-4">
+              <div className="text-[15px] font-semibold text-[var(--color-warn)] mb-2">
+                方案待确认
+              </div>
+              <p className="text-[13px] text-[var(--color-text-muted)] mb-4">
+                Evaluator 已通过方案评审，请确认是否执行修复操作。确认后系统将自动执行并验证结果。
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={doApprove}
+                  disabled={busy}
+                  className="px-4 h-8 rounded-lg bg-[var(--color-ok)] text-white text-[13px] font-medium
+                    hover:opacity-90 disabled:opacity-50 transition-opacity"
+                >
+                  确认执行
+                </button>
+                <button
+                  onClick={() => setShowReject(true)}
+                  disabled={busy}
+                  className="px-4 h-8 rounded-lg border border-[var(--color-danger)]/40 text-[var(--color-danger)] text-[13px] font-medium
+                    hover:bg-[var(--color-danger)]/5 disabled:opacity-50 transition-colors"
+                >
+                  拒绝方案
+                </button>
+              </div>
+              {showReject && (
+                <div className="mt-4 space-y-2">
+                  <textarea
+                    value={rejectFeedback}
+                    onChange={(e) => setRejectFeedback(e.target.value)}
+                    placeholder="请说明拒绝原因和改进方向（可选）"
+                    rows={3}
+                    className="w-full px-3 py-2 rounded border border-[var(--color-border-strong)]
+                      bg-[var(--color-bg)] text-[13px] text-[var(--color-text)] leading-relaxed
+                      focus:border-[var(--color-text)] focus:outline-none transition-colors"
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => { setShowReject(false); setRejectFeedback('') }} className="orca-btn-secondary">
+                      取消
+                    </button>
+                    <button onClick={doReject} disabled={busy} className="px-3 h-7 rounded bg-[var(--color-danger)] text-white text-[12px] font-medium disabled:opacity-50">
+                      确认拒绝
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* 流水线进度 */}
+          {isPipelineStatus && (
+            <section className="mb-6">
+              <PipelineProgress status={inv.status} />
+            </section>
+          )}
 
           {/* 解决结论 */}
           {resolved && (inv.root_cause || inv.solution) && (
@@ -591,31 +695,118 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
   )
 }
 
+/** 渲染结构化 solution entry（JSON: {description, actions}），fallback 到纯 markdown */
+function SolutionContent({ content }: { content: string }) {
+  try {
+    const parsed = JSON.parse(content) as {
+      description?: string
+      actions?: { tool: string; args: string }[]
+      commands?: string[] // 兼容旧格式
+    }
+    return (
+      <>
+        {parsed.description && (
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{parsed.description}</ReactMarkdown>
+        )}
+        {parsed.actions && parsed.actions.length > 0 && (
+          <div className="mt-3">
+            <div className="text-[12px] font-semibold text-[var(--color-text-muted)] mb-1.5">
+              审批后将执行以下操作：
+            </div>
+            <div className="space-y-1.5">
+              {parsed.actions.map((action, i) => {
+                let argsDisplay = action.args
+                try { argsDisplay = JSON.stringify(JSON.parse(action.args), null, 2) } catch {}
+                return (
+                  <div key={i} className="rounded bg-[var(--color-bg)] border border-[var(--color-border)] px-3 py-2">
+                    <code className="text-[12px] font-mono font-semibold text-[var(--color-accent)]">{action.tool}</code>
+                    <pre className="text-[11px] font-mono text-[var(--color-text-muted)] mt-1 whitespace-pre-wrap">{argsDisplay}</pre>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+        {parsed.commands && parsed.commands.length > 0 && (
+          <div className="mt-3">
+            <div className="text-[12px] font-semibold text-[var(--color-text-muted)] mb-1.5">
+              审批后将执行以下命令：
+            </div>
+            <div className="space-y-1">
+              {parsed.commands.map((cmd, i) => (
+                <code key={i} className="block px-3 py-1.5 rounded bg-[var(--color-bg)] text-[12px] font-mono text-[var(--color-text)] border border-[var(--color-border)]">
+                  {cmd}
+                </code>
+              ))}
+            </div>
+          </div>
+        )}
+      </>
+    )
+  } catch {
+    return <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+  }
+}
+
 function TimelineEntry({ entry }: { entry: InvestigationEntry }) {
-  const typeColor: Record<InvestigationEntryType, string> = {
+  const typeColor: Record<string, string> = {
     discovery: 'var(--color-accent)',
     action: 'var(--color-warn)',
     resolution: 'var(--color-ok)',
     note: 'var(--color-text-dim)',
+    report: '#6366f1',    // indigo
+    solution: '#0891b2',  // cyan
+    review: '#d946ef',    // fuchsia
+    verification: 'var(--color-ok)',
+    status_change: 'var(--color-text-dim)',
   }
   const typeLabel: Record<string, string> = {
     discovery: '发现',
     action: '操作',
     resolution: '结论',
     note: '备注',
+    report: '排查报告',
+    solution: '修复方案',
+    review: '评审',
+    verification: '验证',
+    status_change: '状态变更',
   }
+  const typeIcon: Record<string, string> = {
+    report: '📋',
+    solution: '🔧',
+    review: '📝',
+    verification: '✅',
+    status_change: '↗',
+  }
+  const color = typeColor[entry.type] || 'var(--color-text-dim)'
+
+  // status_change 条目简化显示
+  if (entry.type === 'status_change') {
+    return (
+      <div className="relative">
+        <span
+          className="absolute -left-[27px] top-[9px] w-2.5 h-2.5 rounded-full border-2 border-[var(--color-bg)] bg-[var(--color-border)]"
+        />
+        <div className="flex items-center gap-2 text-[12px] text-[var(--color-text-dim)]">
+          <span>↗ 状态变更：{entry.content}</span>
+          <span>{formatRelativeTime(entry.created_at)}</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="relative">
       <span
         className="absolute -left-[27px] top-[9px] w-2.5 h-2.5 rounded-full border-2 border-[var(--color-bg)]"
-        style={{ backgroundColor: typeColor[entry.type] }}
+        style={{ backgroundColor: color }}
       />
       <div className="flex items-center gap-2 mb-1.5">
         <span
           className="inline-flex px-2 py-0.5 rounded text-[12px] font-semibold"
-          style={{ color: typeColor[entry.type], backgroundColor: `color-mix(in srgb, ${typeColor[entry.type]} 12%, transparent)` }}
+          style={{ color, backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)` }}
         >
-          {typeLabel[entry.type] || entry.type}
+          {typeIcon[entry.type] ? typeIcon[entry.type] + ' ' : ''}{typeLabel[entry.type] || entry.type}
         </span>
         <span className="text-[12px] text-[var(--color-text-dim)]">
           {entry.author === 'ai' ? 'AI' : entry.author}
@@ -624,9 +815,57 @@ function TimelineEntry({ entry }: { entry: InvestigationEntry }) {
           {formatRelativeTime(entry.created_at)}
         </span>
       </div>
-      <div className="orca-prose text-[13.5px]">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{entry.content}</ReactMarkdown>
+      <div className={`orca-prose text-[13.5px] ${
+        ['report', 'solution', 'review'].includes(entry.type)
+          ? 'rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3'
+          : ''
+      }`}>
+        {entry.type === 'solution' ? (
+          <SolutionContent content={entry.content} />
+        ) : (
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{entry.content}</ReactMarkdown>
+        )}
       </div>
+    </div>
+  )
+}
+
+const PIPELINE_STEPS: { status: string; label: string }[] = [
+  { status: 'exploring', label: '诊断' },
+  { status: 'explored', label: '诊断完成' },
+  { status: 'generating', label: '生成方案' },
+  { status: 'evaluating', label: '评审' },
+  { status: 'awaiting_approval', label: '待确认' },
+  { status: 'executing', label: '执行' },
+  { status: 'verifying', label: '验证' },
+]
+
+function PipelineProgress({ status }: { status: string }) {
+  const currentIdx = PIPELINE_STEPS.findIndex(s => s.status === status)
+  return (
+    <div className="flex items-center gap-1">
+      {PIPELINE_STEPS.map((step, i) => {
+        const isActive = i === currentIdx
+        const isDone = i < currentIdx
+        return (
+          <div key={step.status} className="flex items-center gap-1">
+            {i > 0 && (
+              <div className={`w-4 h-[2px] ${isDone ? 'bg-[var(--color-ok)]' : 'bg-[var(--color-border)]'}`} />
+            )}
+            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium transition-all ${
+              isActive
+                ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] ring-1 ring-[var(--color-accent)]/30'
+                : isDone
+                ? 'bg-[var(--color-ok)]/10 text-[var(--color-ok)]'
+                : 'bg-[var(--color-surface-2)] text-[var(--color-text-dim)]'
+            }`}>
+              {isDone && <span>✓</span>}
+              {isActive && <span className="inline-block w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
+              <span>{step.label}</span>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

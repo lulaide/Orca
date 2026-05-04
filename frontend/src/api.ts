@@ -370,10 +370,14 @@ export async function unlinkInvestigationFromConversation(convId: string, invId:
 
 // ---- Investigations ----
 
-export type InvestigationStatus = 'open' | 'investigating' | 'resolved' | 'stale'
+export type InvestigationStatus =
+  | 'open' | 'investigating' | 'resolved' | 'stale'
+  | 'exploring' | 'explored' | 'generating' | 'evaluating' | 'awaiting_approval' | 'executing' | 'verifying'
 export type InvestigationSeverity = 'critical' | 'warning' | 'info'
 export type InvestigationView = 'active' | 'resolved' | 'archived' | 'all'
-export type InvestigationEntryType = 'discovery' | 'action' | 'resolution' | 'note'
+export type InvestigationEntryType =
+  | 'discovery' | 'action' | 'resolution' | 'note'
+  | 'report' | 'solution' | 'review' | 'verification' | 'status_change'
 
 export interface Investigation {
   id: string
@@ -481,6 +485,28 @@ export async function unarchiveInvestigation(id: string): Promise<Investigation>
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `unarchive: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function approveInvestigation(id: string): Promise<Investigation> {
+  const res = await authFetch(`/api/investigations/${id}/approve`, { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `approve: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function rejectInvestigation(id: string, feedback?: string): Promise<Investigation> {
+  const res = await authFetch(`/api/investigations/${id}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ feedback }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `reject: ${res.status}`)
   }
   return res.json()
 }

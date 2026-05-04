@@ -15,6 +15,14 @@ import (
 // DB 全局数据库句柄，由 main.go 启动时赋值。
 var DB *gorm.DB
 
+// GlobalRegistry 全局工具注册表，由 main.go 启动时赋值。Executor 通过它执行工具。
+var GlobalRegistry *Registry
+
+// GetRegistry 返回全局注册表。
+func GetRegistry() *Registry {
+	return GlobalRegistry
+}
+
 // NotifyMgr 全局通知管理器，由 main.go 启动时赋值。可为 nil。
 var NotifyMgr interface {
 	NotifyInvestigationCreated(inv *core.Investigation)
@@ -23,12 +31,15 @@ var NotifyMgr interface {
 
 // RegisterInvestigationTools 注册 Investigation 相关的 LLM 工具。
 // 不含归档/删除——归档由人工决定，避免 LLM 幻觉误操作。
+// RegisterInvestigationTools 注册所有 Investigation 工具（含流水线状态推进）。
 func RegisterInvestigationTools(reg *Registry) {
 	reg.Register(listInvestigationsInfo(), handleListInvestigations)
 	reg.Register(getInvestigationInfo(), handleGetInvestigation)
 	reg.Register(createInvestigationInfo(), handleCreateInvestigation)
 	reg.Register(addInvestigationEntryInfo(), handleAddInvestigationEntry)
 	reg.Register(resolveInvestigationInfo(), handleResolveInvestigation)
+	reg.Register(updateInvestigationStatusInfo(), handleUpdateInvestigationStatus)
+	reg.Register(submitSolutionInfo(), handleSubmitSolution)
 }
 
 func investigationDB() (*gorm.DB, error) {
@@ -396,7 +407,7 @@ type addEntryResult struct {
 func addInvestigationEntryInfo() *schema.ToolInfo {
 	return &schema.ToolInfo{
 		Name: "add_investigation_entry",
-		Desc: "Append a timeline entry to an existing Investigation. Use for significant findings ('discovery'), performed actions ('action'), or side notes ('note'). Do NOT use for resolution—use resolve_investigation instead.",
+		Desc: "Append a timeline entry to an existing Investigation. Types: 'discovery' (findings), 'action' (operations), 'note' (side notes), 'report' (Explorer diagnosis report), 'solution' (Generator fix plan), 'review' (Evaluator assessment), 'verification' (post-fix validation). Do NOT use for resolution—use resolve_investigation instead.",
 		ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
 			"investigation_id": {
 				Type:     schema.String,
@@ -405,9 +416,9 @@ func addInvestigationEntryInfo() *schema.ToolInfo {
 			},
 			"type": {
 				Type:     schema.String,
-				Desc:     "discovery | action | note.",
+				Desc:     "Entry type: discovery | action | note | report | solution | review | verification.",
 				Required: true,
-				Enum:     []string{"discovery", "action", "note"},
+				Enum:     []string{"discovery", "action", "note", "report", "solution", "review", "verification"},
 			},
 			"content": {
 				Type:     schema.String,
@@ -503,5 +514,170 @@ func handleResolveInvestigation(ctx context.Context, args string) (string, error
 	}
 
 	b, _ := json.Marshal(resolveResult{ID: inv.ID, Status: inv.Status})
+	return string(b), nil
+}
+
+// ---- update_investigation_status ----
+
+type updateStatusArgs struct {
+	InvestigationID string `json:"investigation_id"`
+	Status          string `json:"status"`
+}
+
+type updateStatusResult struct {
+	ID        string `json:"id"`
+	OldStatus string `json:"old_status"`
+	NewStatus string `json:"new_status"`
+}
+
+func updateInvestigationStatusInfo() *schema.ToolInfo {
+	return &schema.ToolInfo{
+		Name: "update_investigation_status",
+		Desc: "Push an Investigation to the next pipeline stage. Explorer sets 'explored' after diagnosis. Generator sets 'evaluating' after proposing a solution. Evaluator sets 'awaiting_approval' (approved) or 'generating' (rejected).",
+		ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
+			"investigation_id": {
+				Type:     schema.String,
+				Desc:     "The Investigation ID.",
+				Required: true,
+			},
+			"status": {
+				Type:     schema.String,
+				Desc:     "Target status: explored | generating | evaluating | awaiting_approval | verifying.",
+				Required: true,
+				Enum:     []string{"explored", "generating", "evaluating", "awaiting_approval", "verifying"},
+			},
+		}),
+	}
+}
+
+func handleUpdateInvestigationStatus(ctx context.Context, args string) (string, error) {
+	var a updateStatusArgs
+	if err := json.Unmarshal([]byte(args), &a); err != nil {
+		return "", fmt.Errorf("invalid args: %w", err)
+	}
+	if a.InvestigationID == "" || a.Status == "" {
+		return "", errors.New("'investigation_id' and 'status' are required")
+	}
+	db, err := investigationDB()
+	if err != nil {
+		return "", err
+	}
+
+	// 先获取旧状态
+	inv, err := core.GetInvestigation(db, a.InvestigationID)
+	if err != nil {
+		return "", fmt.Errorf("get investigation: %w", err)
+	}
+	oldStatus := inv.Status
+
+	updated, err := core.UpdateInvestigationStatus(db, a.InvestigationID, a.Status, "ai")
+	if err != nil {
+		return "", fmt.Errorf("update status: %w", err)
+	}
+
+	b, _ := json.Marshal(updateStatusResult{
+		ID:        updated.ID,
+		OldStatus: oldStatus,
+		NewStatus: updated.Status,
+	})
+	return string(b), nil
+}
+
+// ---- submit_solution ----
+
+// ---- submit_solution ----
+
+// SolutionAction 是 submit_solution 中的一个结构化工具调用。
+type SolutionAction struct {
+	Tool string `json:"tool"`
+	Args string `json:"args"` // JSON string
+}
+
+// SolutionPayload 是 submit_solution 存入 entry content 的 JSON 结构。
+type SolutionPayload struct {
+	Description string           `json:"description"`
+	Actions     []SolutionAction `json:"actions"`
+}
+
+type submitSolutionArgs struct {
+	InvestigationID string           `json:"investigation_id"`
+	Description     string           `json:"description"`
+	Actions         []SolutionAction `json:"actions"`
+}
+
+type submitSolutionResult struct {
+	EntryID string `json:"entry_id"`
+	Actions int    `json:"actions_count"`
+}
+
+func submitSolutionInfo() *schema.ToolInfo {
+	return &schema.ToolInfo{
+		Name: "submit_solution",
+		Desc: `Submit a structured fix plan for an Investigation. The description is shown to users for review; the actions will be executed automatically after user approval.
+
+Each action is a tool call referencing an existing Orca tool. Available write tools:
+- scale_deployment: {"namespace":"...","deployment":"...","replicas":N}
+- restart_deployment: {"namespace":"...","deployment":"..."}
+- delete_pod: {"namespace":"...","pod":"..."}
+- rollback_deployment: {"namespace":"...","deployment":"..."}
+- cordon_node: {"node":"..."}
+- uncordon_node: {"node":"..."}
+
+You must NOT call these tools directly. Instead, list them as actions here and they will be executed after user approval.`,
+		ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
+			"investigation_id": {
+				Type:     schema.String,
+				Desc:     "The Investigation ID.",
+				Required: true,
+			},
+			"description": {
+				Type:     schema.String,
+				Desc:     "Human-readable explanation of the fix: what it does, expected effect, risks. Markdown allowed.",
+				Required: true,
+			},
+			"actions": {
+				Type: schema.Array,
+				Desc: `Ordered list of tool calls to execute. Each item: {"tool":"tool_name","args":"{\"key\":\"value\"}"}. The args field is a JSON string matching the tool's parameters.`,
+				Required: true,
+				ElemInfo: &schema.ParameterInfo{
+					Type: schema.Object,
+					SubParams: map[string]*schema.ParameterInfo{
+						"tool": {Type: schema.String, Desc: "Tool name (e.g. scale_deployment, restart_deployment)", Required: true},
+						"args": {Type: schema.String, Desc: "JSON string of tool arguments", Required: true},
+					},
+				},
+			},
+		}),
+	}
+}
+
+func handleSubmitSolution(ctx context.Context, args string) (string, error) {
+	var a submitSolutionArgs
+	if err := json.Unmarshal([]byte(args), &a); err != nil {
+		return "", fmt.Errorf("invalid args: %w", err)
+	}
+	if a.InvestigationID == "" || a.Description == "" || len(a.Actions) == 0 {
+		return "", errors.New("'investigation_id', 'description', and 'actions' are required")
+	}
+	db, err := investigationDB()
+	if err != nil {
+		return "", err
+	}
+
+	payload := SolutionPayload{
+		Description: a.Description,
+		Actions:     a.Actions,
+	}
+	content, _ := json.Marshal(payload)
+
+	entry, err := core.CreateEntry(db, a.InvestigationID, "solution", string(content), "ai")
+	if err != nil {
+		return "", fmt.Errorf("submit solution: %w", err)
+	}
+
+	b, _ := json.Marshal(submitSolutionResult{
+		EntryID: entry.ID,
+		Actions: len(a.Actions),
+	})
 	return string(b), nil
 }

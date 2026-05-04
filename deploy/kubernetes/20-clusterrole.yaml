@@ -1,12 +1,4 @@
-# MVP 阶段只给全集群只读权限。
-#
-# 特别说明：
-#   - 故意不包含 secrets，避免 LLM 把密钥回显到对话/日志
-#   - 不包含任何 create/update/patch/delete 动词
-#   - pods/log 作为子资源必须单独列出，否则读不到 Pod 日志
-#
-# Phase 2 加写操作（rollout_restart / scale / delete_pod）时，
-# 另建一个 orca-operator ClusterRole 单独绑定，通过应用层审批流控制。
+# 只读权限：诊断用，不含 secrets。
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -59,3 +51,36 @@ rules:
       - pods
       - nodes
     verbs: ["get", "list"]
+
+---
+# 写操作权限：通过应用层审批流控制，覆盖所有写工具所需的 K8s API 权限。
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: orca-operator
+  labels:
+    app.kubernetes.io/name: orca
+rules:
+  # scale_deployment: 需要 deployments/scale 子资源
+  - apiGroups: ["apps"]
+    resources:
+      - deployments/scale
+    verbs: ["get", "update", "patch"]
+
+  # restart_deployment / rollback_deployment: 需要 patch deployments
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+    verbs: ["get", "patch", "update"]
+
+  # delete_pod: 需要 delete pods
+  - apiGroups: [""]
+    resources:
+      - pods
+    verbs: ["delete"]
+
+  # cordon/uncordon: 需要 patch nodes
+  - apiGroups: [""]
+    resources:
+      - nodes
+    verbs: ["get", "patch", "update"]

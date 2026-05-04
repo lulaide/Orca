@@ -1,5 +1,3 @@
-# 把 orca-readonly ClusterRole 绑定到 orca ServiceAccount。
-# 只有这一步完成后，Agent 调用 K8s API 才会被真正放行。
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -13,4 +11,20 @@ subjects:
 roleRef:
   kind: ClusterRole
   name: orca-readonly
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: orca-operator
+  labels:
+    app.kubernetes.io/name: orca
+subjects:
+  - kind: ServiceAccount
+    name: orca
+    namespace: orca-system
+roleRef:
+  kind: ClusterRole
+  name: orca-operator
   apiGroup: rbac.authorization.k8s.io

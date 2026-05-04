@@ -65,6 +65,11 @@ var ApprovalMgr *ApprovalManager
 // 3. 阻塞等用户确认/拒绝
 // 4. 返回 approved/rejected
 func RequestApproval(ctx context.Context, toolName, toolInput, description, risk string) (bool, error) {
+	// Executor 已获得用户审批，直接放行
+	if v, ok := ctx.Value(PreApprovedKey).(bool); ok && v {
+		log.Printf("Approval: pre-approved for %s, skipping", toolName)
+		return true, nil
+	}
 	if ApprovalMgr == nil {
 		return false, fmt.Errorf("approval manager not initialized")
 	}

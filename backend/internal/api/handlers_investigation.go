@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"github.com/lulaide/orca/internal/agents"
 	"github.com/lulaide/orca/internal/core"
 )
 
@@ -233,5 +234,74 @@ func (d *Deps) handleCreateInvestigationEntry(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, entry)
+}
+
+// ---- /api/investigations/:id/approve (POST) ----
+// 用户确认 awaiting_approval 的调查，触发执行写操作并进入 verifying。
+
+func (d *Deps) handleApproveInvestigation(c *gin.Context) {
+	id := c.Param("id")
+	inv, err := core.GetInvestigation(d.DB, id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "investigation not found"})
+		return
+	}
+	if inv.Status != core.StatusAwaitingApproval {
+		c.JSON(http.StatusConflict, gin.H{"error": "investigation is not awaiting approval, current status: " + inv.Status})
+		return
+	}
+
+	// 记录用户确认
+	core.CreateEntry(d.DB, id, "note", "用户确认执行修复方案", "user")
+
+	// 推进到 executing 状态
+	updated, err := core.UpdateInvestigationStatus(d.DB, id, core.StatusExecuting, "user")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 直接启动执行流水线
+	go agents.RunExecutionPipeline(d.DB, d.Engine, updated)
+
+	c.JSON(http.StatusOK, updated)
+}
+
+// ---- /api/investigations/:id/reject (POST) ----
+// 用户拒绝方案，带反馈信息回到 Generator 重新生成。
+
+type rejectInvestigationRequest struct {
+	Feedback string `json:"feedback"`
+}
+
+func (d *Deps) handleRejectInvestigation(c *gin.Context) {
+	id := c.Param("id")
+	inv, err := core.GetInvestigation(d.DB, id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "investigation not found"})
+		return
+	}
+	if inv.Status != core.StatusAwaitingApproval {
+		c.JSON(http.StatusConflict, gin.H{"error": "investigation is not awaiting approval, current status: " + inv.Status})
+		return
+	}
+
+	var req rejectInvestigationRequest
+	c.ShouldBindJSON(&req)
+
+	feedback := "用户拒绝了修复方案"
+	if req.Feedback != "" {
+		feedback += "：" + req.Feedback
+	}
+	core.CreateEntry(d.DB, id, "review", feedback, "user")
+
+	// 回到 generating 状态（会自动触发 Generator 重新生成）
+	updated, err := core.UpdateInvestigationStatus(d.DB, id, core.StatusGenerating, "user")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, updated)
 }
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/lulaide/Orca/compare/v0.7.0...v0.8.0) (2026-05-04)
+
+
+### Features
+
+* **agents:** 多 Agent 排障流水线 (Explorer → Generator → Evaluator) ([ab133cb](https://github.com/lulaide/Orca/commit/ab133cbad787f4f81657ad70ff64f6ec5b495726))
+* **tools:** 增强 get_node_status 工具，集成 metrics 实时数据 ([cd3ce69](https://github.com/lulaide/Orca/commit/cd3ce6959b3005b3fd5ce1f977da8c587672817c))
+
+
+### Bug Fixes
+
+* **notify:** 飞书通知严重度改为中文显示 ([10b257c](https://github.com/lulaide/Orca/commit/10b257c6e856529005592fb7b5056a6ec4e5f99c))
+
 ## [0.7.0](https://github.com/lulaide/Orca/compare/v0.6.0...v0.7.0) (2026-05-03)
 
 

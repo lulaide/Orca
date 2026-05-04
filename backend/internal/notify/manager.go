@@ -166,7 +166,7 @@ func (m *Manager) NotifyEvent(ev *core.Event) {
 	}
 	go func() {
 		color := severityColor(ev.Severity)
-		title := fmt.Sprintf("🔔 新事件 [%s]", strings.ToUpper(ev.Severity))
+		title := fmt.Sprintf("🔔 新事件 [%s]", severityLabel(ev.Severity))
 		content := fmt.Sprintf("**%s**\n\n来源: %s\n时间: %s",
 			ev.Title, ev.Source, ev.CreatedAt.Format("01-02 15:04"))
 
@@ -183,7 +183,7 @@ func (m *Manager) NotifyInvestigationCreated(inv *core.Investigation) {
 	}
 	go func() {
 		color := severityColor(inv.Severity)
-		title := fmt.Sprintf("🔍 新调查 [%s]", strings.ToUpper(inv.Severity))
+		title := fmt.Sprintf("🔍 新调查 [%s]", severityLabel(inv.Severity))
 		content := fmt.Sprintf("**%s**\n\n%s",
 			inv.Title, larkifyMarkdown(inv.Description))
 

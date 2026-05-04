@@ -293,6 +293,12 @@ func buildPatrolSystemPrompt(cfg *core.PatrolConfig) string {
 - 有 → 调 read_skill(name) 加载排障手册，按手册排查
 - 没有 → 正常排查
 
+## 你绝对不能做的
+
+- ❌ 不要调用 run_command（需要审批，无人值守模式下会卡死）
+- ❌ 不要执行写操作（restart/scale/delete 等）
+- ❌ 不要调用 submit_solution
+
 ## 语言要求
 所有输出使用中文。
 

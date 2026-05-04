@@ -14,6 +14,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	"github.com/lulaide/orca/internal/kube"
 )
@@ -468,7 +469,7 @@ func handleGetEvents(ctx context.Context, args string) (string, error) {
 func getNodeStatusInfo() *schema.ToolInfo {
 	return &schema.ToolInfo{
 		Name: "get_node_status",
-		Desc: "List all Kubernetes nodes with their status, roles, version, and resource capacity. Useful for checking node health and capacity.",
+		Desc: "List all Kubernetes nodes with status, roles, version, resource capacity/allocatable, real-time CPU/memory usage (from metrics-server), pod count, taints, and conditions. Comprehensive node health overview.",
 		ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{}),
 	}
 }
@@ -488,13 +489,46 @@ func handleGetNodeStatus(ctx context.Context, args string) (string, error) {
 		return "No nodes found.", nil
 	}
 
+	// 获取节点 metrics（可选，metrics-server 可能未安装）
+	nodeMetrics := map[string]nodeUsage{}
+	if cfg := mgr.RestConfig(); cfg != nil {
+		if mc, err := metricsv.NewForConfig(cfg); err == nil {
+			if nm, err := mc.MetricsV1beta1().NodeMetricses().List(ctx, metav1.ListOptions{}); err == nil {
+				for _, m := range nm.Items {
+					cpu := m.Usage[corev1.ResourceCPU]
+					mem := m.Usage[corev1.ResourceMemory]
+					nodeMetrics[m.Name] = nodeUsage{
+						CPUMillis: cpu.MilliValue(),
+						MemBytes:  mem.Value(),
+					}
+				}
+			}
+		}
+	}
+
+	// 获取每个节点上的 Pod 数量
+	pods, _ := mgr.Clientset().CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+	nodePodCount := map[string]int{}
+	if pods != nil {
+		for _, p := range pods.Items {
+			if p.Spec.NodeName != "" && p.Status.Phase != corev1.PodSucceeded && p.Status.Phase != corev1.PodFailed {
+				nodePodCount[p.Spec.NodeName]++
+			}
+		}
+	}
+
 	var b strings.Builder
 	fmt.Fprintf(&b, "Found %d node(s):\n", len(nodes.Items))
 	for _, n := range nodes.Items {
-		b.WriteString(formatNodeDetail(&n))
+		b.WriteString(formatNodeDetailEnhanced(&n, nodeMetrics[n.Name], nodePodCount[n.Name]))
 		b.WriteString("\n---\n")
 	}
 	return b.String(), nil
+}
+
+type nodeUsage struct {
+	CPUMillis int64
+	MemBytes  int64
 }
 
 // ---- 格式化辅助函数 ----
@@ -536,6 +570,10 @@ func formatPodDetail(p *corev1.Pod) string {
 }
 
 func formatNodeDetail(n *corev1.Node) string {
+	return formatNodeDetailEnhanced(n, nodeUsage{}, 0)
+}
+
+func formatNodeDetailEnhanced(n *corev1.Node, usage nodeUsage, podCount int) string {
 	var b strings.Builder
 	// roles
 	roles := make([]string, 0)
@@ -550,14 +588,19 @@ func formatNodeDetail(n *corev1.Node) string {
 
 	// conditions
 	ready := "Unknown"
+	var condSummary []string
 	for _, c := range n.Status.Conditions {
 		if c.Type == corev1.NodeReady {
 			ready = string(c.Status)
+		}
+		if c.Status == corev1.ConditionTrue && c.Type != corev1.NodeReady {
+			condSummary = append(condSummary, string(c.Type))
 		}
 	}
 
 	cap := n.Status.Capacity
 	alloc := n.Status.Allocatable
+
 	fmt.Fprintf(&b, "Node: %s  Roles: %s  Ready: %s  Version: %s\n",
 		n.Name, strings.Join(roles, ","), ready, n.Status.NodeInfo.KubeletVersion)
 	fmt.Fprintf(&b, "  OS: %s/%s  Runtime: %s\n",
@@ -567,6 +610,43 @@ func formatNodeDetail(n *corev1.Node) string {
 		cap.Cpu().String(), cap.Memory().String(), cap.Pods().String())
 	fmt.Fprintf(&b, "  Allocatable: CPU=%s  Memory=%s  Pods=%s\n",
 		alloc.Cpu().String(), alloc.Memory().String(), alloc.Pods().String())
+
+	// 实时使用率
+	if usage.CPUMillis > 0 || usage.MemBytes > 0 {
+		allocCPU := alloc.Cpu().MilliValue()
+		allocMem := alloc.Memory().Value()
+		cpuPct := float64(0)
+		memPct := float64(0)
+		if allocCPU > 0 {
+			cpuPct = float64(usage.CPUMillis) / float64(allocCPU) * 100
+		}
+		if allocMem > 0 {
+			memPct = float64(usage.MemBytes) / float64(allocMem) * 100
+		}
+		fmt.Fprintf(&b, "  Usage:       CPU=%dm (%.1f%%)  Memory=%dMi (%.1f%%)\n",
+			usage.CPUMillis, cpuPct, usage.MemBytes/(1024*1024), memPct)
+	} else {
+		b.WriteString("  Usage:       (metrics-server 不可用)\n")
+	}
+
+	// Pod 数量
+	podCap := cap.Pods().Value()
+	fmt.Fprintf(&b, "  Pods:        %d running / %d max\n", podCount, podCap)
+
+	// Taints
+	if len(n.Spec.Taints) > 0 {
+		taints := make([]string, 0, len(n.Spec.Taints))
+		for _, t := range n.Spec.Taints {
+			taints = append(taints, fmt.Sprintf("%s=%s:%s", t.Key, t.Value, t.Effect))
+		}
+		fmt.Fprintf(&b, "  Taints:      %s\n", strings.Join(taints, ", "))
+	}
+
+	// 异常 Conditions
+	if len(condSummary) > 0 {
+		fmt.Fprintf(&b, "  ⚠ Conditions: %s\n", strings.Join(condSummary, ", "))
+	}
+
 	return b.String()
 }
 

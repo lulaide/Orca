@@ -10,6 +10,7 @@ import (
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
+	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher/callback"
 	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 	"gorm.io/gorm"
 
@@ -35,6 +36,14 @@ type Manager struct {
 	// WebSocket 长连接
 	wsCancel context.CancelFunc
 	wsMu     sync.Mutex
+
+	// onApprove 飞书审批回调，由 main.go 注入（启动 RunExecutionPipeline）。
+	onApprove func(inv *core.Investigation)
+}
+
+// SetOnApprove 注册飞书审批确认回调。
+func (m *Manager) SetOnApprove(fn func(inv *core.Investigation)) {
+	m.onApprove = fn
 }
 
 // NewManager 创建通知管理器并从 DB 加载配置。
@@ -75,6 +84,9 @@ func (m *Manager) StartBot() {
 	handler := dispatcher.NewEventDispatcher("", "").
 		OnP2MessageReceiveV1(func(ctx context.Context, event *larkim.P2MessageReceiveV1) error {
 			return m.handleMessageEvent(event)
+		}).
+		OnP2CardActionTrigger(func(ctx context.Context, event *callback.CardActionTriggerEvent) (*callback.CardActionTriggerResponse, error) {
+			return m.handleCardAction(event)
 		})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -232,6 +244,144 @@ func (m *Manager) SendCard(title, content, color string) {
 	if err := m.lark.SendCard(title, content, color); err != nil {
 		log.Printf("Notify: send card failed: %v", err)
 	}
+}
+
+// NotifyApprovalRequired 发送交互审批卡片到飞书群。
+func (m *Manager) NotifyApprovalRequired(inv *core.Investigation) {
+	if m.lark == nil || m.cfg.ChatID == "" {
+		return
+	}
+	go func() {
+		// 从时间线找最新的 solution entry 解析描述和操作
+		entries, err := core.ListEntries(m.db, inv.ID)
+		if err != nil {
+			log.Printf("Notify: list entries for approval card failed: %v", err)
+			return
+		}
+
+		description := ""
+		var actionsList []map[string]string
+		for i := len(entries) - 1; i >= 0; i-- {
+			if entries[i].Type == "solution" {
+				var payload struct {
+					Description string `json:"description"`
+					Actions     []struct {
+						Tool string `json:"tool"`
+						Args string `json:"args"`
+					} `json:"actions"`
+				}
+				if json.Unmarshal([]byte(entries[i].Content), &payload) == nil {
+					description = payload.Description
+					for _, a := range payload.Actions {
+						actionsList = append(actionsList, map[string]string{"tool": a.Tool, "args": a.Args})
+					}
+				}
+				break
+			}
+		}
+
+		if err := m.lark.SendApprovalCardForInvestigation(m.cfg.ChatID, inv, description, actionsList); err != nil {
+			log.Printf("Notify: send approval card failed: %v", err)
+		}
+	}()
+}
+
+// handleCardAction 处理飞书卡片按钮回调（确认/拒绝审批）。
+func (m *Manager) handleCardAction(event *callback.CardActionTriggerEvent) (*callback.CardActionTriggerResponse, error) {
+	if event == nil || event.Event == nil || event.Event.Action == nil {
+		return nil, nil
+	}
+
+	action := event.Event.Action
+	value := action.Value
+
+	actionType, _ := value["action"].(string)
+	invID, _ := value["investigation_id"].(string)
+
+	if actionType == "" || invID == "" {
+		return nil, nil
+	}
+
+	log.Printf("Bot: card action received: %s for investigation %s", actionType, invID)
+
+	inv, err := core.GetInvestigation(m.db, invID)
+	if err != nil {
+		log.Printf("Bot: get investigation failed: %v", err)
+		return &callback.CardActionTriggerResponse{
+			Toast: &callback.Toast{Type: "error", Content: "调查不存在"},
+		}, nil
+	}
+
+	if inv.Status != core.StatusAwaitingApproval {
+		return &callback.CardActionTriggerResponse{
+			Toast: &callback.Toast{Type: "warning", Content: "调查当前状态为 " + inv.Status + "，无法操作"},
+		}, nil
+	}
+
+	// 获取方案内容用于结果卡片
+	entries, _ := core.ListEntries(m.db, invID)
+	var solutionDesc string
+	for i := len(entries) - 1; i >= 0; i-- {
+		if entries[i].Type == "solution" {
+			var payload struct {
+				Description string `json:"description"`
+			}
+			if json.Unmarshal([]byte(entries[i].Content), &payload) == nil {
+				solutionDesc = larkifyMarkdown(payload.Description)
+			}
+			break
+		}
+	}
+
+	switch actionType {
+	case "approve":
+		core.CreateEntry(m.db, invID, "note", "用户通过飞书确认执行修复方案", "user")
+		updated, err := core.UpdateInvestigationStatus(m.db, invID, core.StatusExecuting, "user")
+		if err != nil {
+			return &callback.CardActionTriggerResponse{
+				Toast: &callback.Toast{Type: "error", Content: "操作失败: " + err.Error()},
+			}, nil
+		}
+
+		if m.onApprove != nil {
+			m.onApprove(updated)
+		}
+
+		resultCard := buildResultCard(
+			"✅ 方案已确认 — "+inv.Title, solutionDesc, "green",
+			"**状态：** 已确认执行，正在自动修复中...",
+		)
+
+		return &callback.CardActionTriggerResponse{
+			Toast: &callback.Toast{Type: "success", Content: "已确认执行，正在处理..."},
+			Card:  &callback.Card{Type: "raw", Data: resultCard},
+		}, nil
+
+	case "reject":
+		feedback := "用户通过飞书拒绝了修复方案"
+		if reason, ok := action.FormValue["reason"].(string); ok && reason != "" {
+			feedback += "：" + reason
+		}
+		core.CreateEntry(m.db, invID, "review", feedback, "user")
+		core.UpdateInvestigationStatus(m.db, invID, core.StatusGenerating, "user")
+
+		rejectNote := "**状态：** 已拒绝，正在重新生成方案..."
+		if reason, ok := action.FormValue["reason"].(string); ok && reason != "" {
+			rejectNote = fmt.Sprintf("**状态：** 已拒绝\n**原因：** %s\n\n正在重新生成方案...", reason)
+		}
+
+		resultCard := buildResultCard(
+			"❌ 方案已拒绝 — "+inv.Title, solutionDesc, "red",
+			rejectNote,
+		)
+
+		return &callback.CardActionTriggerResponse{
+			Toast: &callback.Toast{Type: "info", Content: "已拒绝，将重新生成方案"},
+			Card:  &callback.Card{Type: "raw", Data: resultCard},
+		}, nil
+	}
+
+	return nil, nil
 }
 
 func severityColor(s string) string {

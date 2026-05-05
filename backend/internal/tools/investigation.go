@@ -27,6 +27,7 @@ func GetRegistry() *Registry {
 var NotifyMgr interface {
 	NotifyInvestigationCreated(inv *core.Investigation)
 	NotifyInvestigationResolved(inv *core.Investigation)
+	NotifyApprovalRequired(inv *core.Investigation)
 }
 
 // RegisterInvestigationTools 注册 Investigation 相关的 LLM 工具。

@@ -7,6 +7,7 @@ import (
 
 	"github.com/lulaide/orca/internal/core"
 	"github.com/lulaide/orca/internal/llm"
+	"github.com/lulaide/orca/internal/tools"
 )
 
 const maxRetries = 3
@@ -37,6 +38,10 @@ func RunSolutionPipeline(db *gorm.DB, engine *llm.Engine, inv *core.Investigatio
 		switch fresh.Status {
 		case core.StatusAwaitingApproval:
 			log.Printf("Agents/Pipeline: investigation %s → awaiting_approval", inv.ID)
+			// 发送飞书审批通知
+			if tools.NotifyMgr != nil {
+				tools.NotifyMgr.NotifyApprovalRequired(fresh)
+			}
 			return
 		case core.StatusGenerating:
 			log.Printf("Agents/Pipeline: Evaluator rejected, retrying (%d/%d)", i+1, maxRetries)

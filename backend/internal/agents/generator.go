@@ -89,19 +89,21 @@ actions 里的每个操作在用户审批后会通过内置工具**自动执行*
 - tool: 工具名（见下方列表）
 - args: JSON 字符串，对应工具的参数
 
-可用的写操作工具：
-- **scale_deployment**: {"namespace":"...","deployment":"...","replicas":N} — 调整副本数
-- **restart_deployment**: {"namespace":"...","deployment":"..."} — 滚动重启
-- **delete_pod**: {"namespace":"...","pod":"..."} — 删除 Pod
-- **rollback_deployment**: {"namespace":"...","deployment":"..."} — 回滚到上一版本
-- **cordon_node**: {"node":"..."} — 标记节点不可调度
-- **uncordon_node**: {"node":"..."} — 取消节点不可调度
+可用的写操作工具（注意字段名必须严格匹配）：
+- **scale_deployment**: {"namespace":"...","name":"...","replicas":N} — 调整副本数
+- **restart_deployment**: {"namespace":"...","name":"..."} — 滚动重启
+- **delete_pod**: {"namespace":"...","name":"..."} — 删除 Pod
+- **rollback_deployment**: {"namespace":"...","name":"..."} — 回滚到上一版本
+- **cordon_node**: {"name":"..."} — 标记节点不可调度
+- **uncordon_node**: {"name":"..."} — 取消节点不可调度
+
+⚠️ 所有工具的资源名参数统一用 "name"，不要用 "deployment"/"pod"/"node" 等别名！
 
 示例：
 submit_solution(
   investigation_id="xxx",
   description="将 podinfo 扩容到 2 个副本以恢复服务",
-  actions=[{"tool":"scale_deployment","args":"{\"namespace\":\"demo\",\"deployment\":\"podinfo\",\"replicas\":2}"}]
+  actions=[{"tool":"scale_deployment","args":"{\"namespace\":\"demo\",\"name\":\"podinfo\",\"replicas\":2}"}]
 )
 
 ## 你绝对不能做的

@@ -359,6 +359,14 @@ orca/
 │   │   ├── llm/
 │   │   │   ├── provider.go             # Provider 工厂（eino ChatModel，支持 OpenAI/Anthropic）
 │   │   │   └── engine.go               # Agentic Loop + Context 组装
+│   │   ├── agents/
+│   │   │   ├── explorer.go             # Explorer Agent（只读诊断）
+│   │   │   ├── generator.go            # Generator Agent（生成结构化方案）
+│   │   │   ├── evaluator.go            # Evaluator Agent（方案评审 + 修复验证）
+│   │   │   ├── executor.go             # Executor（解析 actions，通过 registry 执行）
+│   │   │   ├── pipeline.go             # SolutionPipeline / ExecutionPipeline 循环
+│   │   │   ├── hooks.go                # 状态变更回调注册
+│   │   │   └── context.go              # 从时间线组装 Agent 上下文
 │   │   ├── tools/
 │   │   │   ├── registry.go             # Tool 注册表（权限自查 + 动态注册）
 │   │   │   └── kubernetes.go           # K8s 只读工具（client-go）
@@ -486,10 +494,14 @@ LLM 决定执行写操作（如 delete pod）时，不直接执行，而是：1)
 16. **Token 追踪**：每条消息记录 prompt/completion/cached tokens
 17. **零配置部署**：kubectl apply -k 一键安装，单镜像（go:embed），移动端适配
 
-### Phase 2 — Agent Harness
+### Phase 2 — Agent Harness（进行中）
 
-- 多 Agent 协调：Supervisor Agent（分诊 + 事件去重）+ Analysis Agent（排查）
-- IM Bot AI 对话（飞书群内直接排障 + 审批回复）
+- [x] 多 Agent 排障流水线（Explorer → Generator → Evaluator），Investigation 状态驱动
+- [x] 结构化方案执行：submit_solution + Executor 通过 registry.Execute 调用内置工具
+- [x] 飞书交互卡片审批（确认/拒绝 + 拒绝原因 + 卡片动态更新）
+- [x] get_node_status 集成 metrics 实时 CPU/内存
+- [x] orca-operator ClusterRole（写操作 RBAC 权限）
+- IM Bot AI 对话（飞书群内直接排障）
 - 工具执行审计 + Token 成本统计面板
 - MCP Server（对外暴露 Agent 能力）
 - CEL 规则引擎（告警过滤 / 关联 / 去重）

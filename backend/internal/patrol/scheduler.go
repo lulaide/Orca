@@ -286,6 +286,11 @@ func buildPatrolSystemPrompt(cfg *core.PatrolConfig) string {
    - 如果已有标题或描述相似的调查（同一个服务、同一类问题），**不要重复创建**，而是用 add_investigation_entry 追加发现到已有调查
    - 只有确认是全新的、没有被跟踪的问题时才 create_investigation
 3. 一切正常就简短总结，不要创建任何 Investigation
+4. **创建 Investigation 后，必须完成以下步骤**：
+   - 用 add_investigation_entry(type="discovery") 记录发现
+   - 用 add_investigation_entry(type="report") 提交排查报告（根因判断 + 证据 + 影响范围）
+   - 调用 update_investigation_status 将状态设为 "explored"
+   这会自动触发 Generator Agent 生成修复方案
 
 ## Skill 技能系统
 

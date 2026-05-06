@@ -125,6 +125,7 @@ func NewRouter(d *Deps) *gin.Engine {
 		api.POST("/investigations/:id/unarchive", d.handleUnarchiveInvestigation)
 		api.POST("/investigations/:id/approve", d.handleApproveInvestigation)
 		api.POST("/investigations/:id/reject", d.handleRejectInvestigation)
+		api.POST("/investigations/:id/diagnose", d.handleDiagnoseInvestigation)
 		api.GET("/investigations/:id/entries", d.handleListInvestigationEntries)
 		api.POST("/investigations/:id/entries", d.handleCreateInvestigationEntry)
 

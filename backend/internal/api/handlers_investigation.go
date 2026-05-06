@@ -305,3 +305,37 @@ func (d *Deps) handleRejectInvestigation(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
+// ---- /api/investigations/:id/diagnose (POST) ----
+// 手动触发 Explorer Agent 诊断。open/resolved/stale 状态可触发。
+
+func (d *Deps) handleDiagnoseInvestigation(c *gin.Context) {
+	id := c.Param("id")
+	inv, err := core.GetInvestigation(d.DB, id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "investigation not found"})
+		return
+	}
+
+	allowed := map[string]bool{
+		core.StatusOpen:     true,
+		core.StatusResolved: true,
+		core.StatusStale:    true,
+	}
+	if !allowed[inv.Status] {
+		c.JSON(http.StatusConflict, gin.H{"error": "当前状态 " + inv.Status + " 不允许触发诊断"})
+		return
+	}
+
+	core.CreateEntry(d.DB, id, "note", "用户手动触发诊断", "user")
+
+	updated, err := core.UpdateInvestigationStatus(d.DB, id, core.StatusExploring, "user")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	go agents.RunExplorer(d.DB, d.Engine, updated)
+
+	c.JSON(http.StatusOK, updated)
+}
+

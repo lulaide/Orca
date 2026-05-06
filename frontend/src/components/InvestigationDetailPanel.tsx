@@ -5,6 +5,7 @@ import {
   approveInvestigation,
   archiveInvestigation,
   createInvestigationEntry,
+  diagnoseInvestigation,
   getInvestigation,
   listInvestigationEntries,
   rejectInvestigation,
@@ -238,6 +239,21 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
     }
   }
 
+  const doDiagnose = async () => {
+    setBusy(true)
+    try {
+      const u = await diagnoseInvestigation(id)
+      setInv(u)
+      await reload()
+      onChanged()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '触发诊断失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const canDiagnose = ['open', 'resolved', 'stale'].includes(inv.status)
   const isPipelineStatus = ['exploring', 'explored', 'generating', 'evaluating', 'awaiting_approval', 'executing', 'verifying'].includes(inv.status)
 
   return (
@@ -411,12 +427,23 @@ export function InvestigationDetailPanel({ id, onChanged }: Props) {
                 ))}
               </div>
             )}
+            {!archived && canDiagnose && (
+              <button
+                type="button"
+                onClick={doDiagnose}
+                disabled={busy}
+                className="ml-auto px-3 h-7 rounded-lg bg-[var(--color-accent)] text-white text-[12px] font-medium
+                  hover:opacity-90 disabled:opacity-50 transition-opacity"
+              >
+                {inv.status === 'open' ? '开始诊断' : '重新诊断'}
+              </button>
+            )}
             {!archived && (
               <button
                 type="button"
                 onClick={() => setAskArchive(true)}
                 disabled={busy}
-                className="ml-auto orca-btn-secondary"
+                className={`${canDiagnose ? '' : 'ml-auto '}orca-btn-secondary`}
               >
                 归档
               </button>

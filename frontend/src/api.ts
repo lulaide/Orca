@@ -511,6 +511,15 @@ export async function rejectInvestigation(id: string, feedback?: string): Promis
   return res.json()
 }
 
+export async function diagnoseInvestigation(id: string): Promise<Investigation> {
+  const res = await authFetch(`/api/investigations/${id}/diagnose`, { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `diagnose: ${res.status}`)
+  }
+  return res.json()
+}
+
 export async function listInvestigationEntries(id: string): Promise<InvestigationEntry[]> {
   const res = await authFetch(`/api/investigations/${id}/entries`)
   if (!res.ok) throw new Error(`entries: ${res.status}`)

@@ -1,26 +1,33 @@
 package notify
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/cloudwego/eino/schema"
 	"gorm.io/gorm"
 
 	"github.com/lulaide/orca/internal/core"
+	"github.com/lulaide/orca/internal/knowledge"
+	"github.com/lulaide/orca/internal/llm"
+	"github.com/lulaide/orca/internal/tools"
 )
 
 // BotHandler 处理飞书机器人交互命令。
 type BotHandler struct {
-	db   *gorm.DB
-	lark *LarkNotifier
+	db     *gorm.DB
+	lark   *LarkNotifier
+	engine *llm.Engine
 }
 
 // NewBotHandler 创建机器人命令处理器。
-func NewBotHandler(db *gorm.DB, lark *LarkNotifier) *BotHandler {
-	return &BotHandler{db: db, lark: lark}
+func NewBotHandler(db *gorm.DB, lark *LarkNotifier, engine *llm.Engine) *BotHandler {
+	return &BotHandler{db: db, lark: lark, engine: engine}
 }
 
 // HandleMessage 解析命令并发送回复。
@@ -45,16 +52,23 @@ func (b *BotHandler) HandleMessage(text, chatID string) {
 		}
 	case text == "事件列表" || text == "事件" || text == "列出事件":
 		b.cmdListEvents(chatID)
+	case text == "对话列表" || text == "对话" || text == "列出对话":
+		b.cmdListConversations(chatID)
+	case strings.HasPrefix(text, "对话"):
+		b.cmdChat(chatID, strings.TrimSpace(strings.TrimPrefix(text, "对话")))
 	default:
 		b.cmdHelp(chatID)
 	}
 }
 
 func (b *BotHandler) cmdHelp(chatID string) {
-	content := "**调查列表** — 进行中的调查\n" +
+	content := "**对话 问题** — AI 对话（新建）\n" +
+		"**对话 ID前缀 问题** — 继续已有对话\n" +
+		"**对话列表** — 最近的对话\n" +
+		"**调查列表** — 进行中的调查\n" +
 		"**已解决** — 已解决的调查\n" +
 		"**全部调查** — 所有调查\n" +
-		"**查看 <ID>** — 调查详情（输入前几位即可）\n" +
+		"**查看 ID前缀** — 调查详情\n" +
 		"**事件列表** — 最近事件\n" +
 		"**帮助** — 显示本帮助"
 
@@ -279,3 +293,168 @@ func relativeTime(t time.Time) string {
 		return fmt.Sprintf("%d 天前", int(d.Hours()/24))
 	}
 }
+
+// ---- 对话列表 ----
+
+func (b *BotHandler) cmdListConversations(chatID string) {
+	var convs []core.Conversation
+	b.db.Where("type = ?", "lark").Order("updated_at DESC").Limit(10).Find(&convs)
+
+	if len(convs) == 0 {
+		b.lark.SendCardToChat(chatID, "🐋 飞书对话", "暂无对话\n\n使用 **对话 你的问题** 开始新对话", "blue")
+		return
+	}
+
+	var sb strings.Builder
+	for _, c := range convs {
+		shortID := c.ID[:6]
+		sb.WriteString(fmt.Sprintf("**[%s]** %s — %s\n", shortID, c.Title, relativeTime(c.UpdatedAt)))
+	}
+	sb.WriteString("\n继续对话：**对话 ID前缀 你的问题**")
+
+	b.lark.SendCardToChat(chatID, fmt.Sprintf("🐋 飞书对话 (%d)", len(convs)), sb.String(), "blue")
+}
+
+// ---- /chat AI 对话 ----
+
+// hexPrefixRe 匹配 6+ 位 hex 字符串（convID 前缀）
+var hexPrefixRe = regexp.MustCompile(`^[0-9a-f]{6,}$`)
+
+// cmdChat 处理 /chat 命令，支持新建对话和追问。
+func (b *BotHandler) cmdChat(chatID, text string) {
+	if b.engine == nil {
+		b.lark.SendCardToChat(chatID, "🐋 Orca AI", "AI 引擎未配置，请先在设置中配置 LLM。", "red")
+		return
+	}
+	if text == "" {
+		b.lark.SendCardToChat(chatID, "🐋 Orca AI", "用法：**对话 你的问题**\n继续对话：**对话 ID前缀 你的问题**", "blue")
+		return
+	}
+
+	// 解析 convID 前缀
+	convID, userMsg := parseChatArgs(b.db, text)
+
+	// 新对话
+	if convID == "" {
+		conv, err := core.CreateConversation(b.db, "飞书对话", "lark", "")
+		if err != nil {
+			log.Printf("Bot/chat: create conversation failed: %v", err)
+			b.lark.SendCardToChat(chatID, "🐋 Orca AI", "创建对话失败: "+err.Error(), "red")
+			return
+		}
+		convID = conv.ID
+		userMsg = text
+	}
+
+	shortID := convID[:6]
+	log.Printf("Bot/chat: conversation %s (%s), message: %s", shortID, convID, truncate(userMsg, 50))
+
+	// 加载历史
+	rows, _ := core.ListMessages(b.db, convID)
+	einoHistory, _ := core.ToEinoMessages(rows)
+
+	// 保存 user 消息
+	core.SaveEinoMessage(b.db, convID, schema.UserMessage(userMsg))
+
+	// 构建 system prompt（复用 Web Chat 的提示词风格）
+	systemPrompt := llm.ChatSystemPrompt + knowledge.BuildSkillContext(b.db)
+
+	// 运行 Agent Loop
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	ctx = context.WithValue(ctx, tools.LarkChatIDKey, chatID)
+	ctx = context.WithValue(ctx, tools.ConversationIDKey, convID)
+
+	result, err := b.engine.Run(ctx, llm.RunInput{
+		SystemPrompt: systemPrompt,
+		UserMessage:  userMsg,
+		History:      einoHistory,
+		OnMessage: func(m *schema.Message) {
+			if m != nil {
+				core.SaveEinoMessage(b.db, convID, m)
+			}
+		},
+	})
+
+	if err != nil {
+		log.Printf("Bot/chat: engine run failed: %v", err)
+		b.lark.SendCardToChat(chatID, fmt.Sprintf("🐋 Orca AI [%s]", shortID),
+			"AI 处理失败: "+err.Error()+"\n\n继续对话：**对话 "+shortID+" 你的问题**", "red")
+		return
+	}
+
+	// 格式化回复
+	response := formatChatResponse(result)
+	footer := fmt.Sprintf("\n\n---\n继续对话：**对话 %s 你的问题**", shortID)
+
+	content := larkifyMarkdown(response) + footer
+	// 飞书卡片内容截断（安全上限）
+	if len(content) > 28000 {
+		content = content[:28000] + "\n\n... (内容过长，已截断)"
+	}
+
+	if err := b.lark.SendCardToChat(chatID, fmt.Sprintf("🐋 Orca AI [%s]", shortID), content, "blue"); err != nil {
+		log.Printf("Bot/chat: send response failed: %v", err)
+	}
+}
+
+// parseChatArgs 解析 /chat 后的文本，判断开头是否是 convID 前缀。
+func parseChatArgs(db *gorm.DB, text string) (convID, userMsg string) {
+	parts := strings.SplitN(text, " ", 2)
+	if len(parts) < 2 {
+		return "", text // 没有空格，整个是消息
+	}
+
+	token := strings.ToLower(parts[0])
+	if !hexPrefixRe.MatchString(token) {
+		return "", text // 不是 hex 前缀
+	}
+
+	// 在 conversations 表查找匹配的 convID
+	var conv core.Conversation
+	if err := db.Where("id LIKE ?", token+"%").Order("updated_at DESC").First(&conv).Error; err != nil {
+		return "", text // 没找到，整个当消息
+	}
+
+	return conv.ID, parts[1]
+}
+
+// formatChatResponse 从 RunResult 格式化飞书回复。
+func formatChatResponse(result *llm.RunResult) string {
+	if result == nil || result.Final == nil {
+		return "（无回复）"
+	}
+
+	response := result.Final.Content
+
+	// 统计工具调用
+	toolCalls := 0
+	toolNames := map[string]bool{}
+	for _, m := range result.Messages {
+		if m.Role == schema.Assistant && len(m.ToolCalls) > 0 {
+			for _, tc := range m.ToolCalls {
+				toolCalls++
+				toolNames[tc.Function.Name] = true
+			}
+		}
+	}
+
+	if toolCalls > 0 {
+		names := make([]string, 0, len(toolNames))
+		for n := range toolNames {
+			names = append(names, n)
+		}
+		response += fmt.Sprintf("\n\n*调用了 %d 个工具：%s*", toolCalls, strings.Join(names, "、"))
+	}
+
+	return response
+}
+
+func truncate(s string, n int) string {
+	if utf8.RuneCountInString(s) <= n {
+		return s
+	}
+	runes := []rune(s)
+	return string(runes[:n]) + "..."
+}
+

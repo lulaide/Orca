@@ -59,6 +59,10 @@ func (m *ApprovalManager) Reject(id, userID string) error {
 // 全局审批管理器
 var ApprovalMgr *ApprovalManager
 
+// LarkApprovalSender 飞书审批卡片发送函数，由 notify 包注入。
+// 参数: chatID, actionID, toolName, description, risk
+var LarkApprovalSender func(chatID, actionID, toolName, description, risk string)
+
 // RequestApproval 写工具的通用审批入口。
 // 1. 创建 PendingAction 存 DB
 // 2. 通过 SSE 推审批事件给前端
@@ -101,7 +105,7 @@ func RequestApproval(ctx context.Context, toolName, toolInput, description, risk
 		ApprovalMgr.mu.Unlock()
 	}()
 
-	// 通过 SSE 推审批事件给前端（阻塞前）
+	// 推审批事件：SSE（Web）或飞书卡片（Lark）
 	if emit := SSEEmitFromContext(ctx); emit != nil {
 		_ = emit("approval_required", map[string]string{
 			"id":          actionID,
@@ -109,7 +113,12 @@ func RequestApproval(ctx context.Context, toolName, toolInput, description, risk
 			"description": description,
 			"risk":        risk,
 		})
-		log.Printf("Approval: waiting for %s (%s)", toolName, actionID)
+		log.Printf("Approval: waiting for %s (%s) via SSE", toolName, actionID)
+	} else if chatID, ok := ctx.Value(LarkChatIDKey).(string); ok && chatID != "" && LarkApprovalSender != nil {
+		LarkApprovalSender(chatID, actionID, toolName, description, risk)
+		log.Printf("Approval: waiting for %s (%s) via Lark card", toolName, actionID)
+	} else {
+		log.Printf("Approval: waiting for %s (%s) — no notification channel", toolName, actionID)
 	}
 
 	// 阻塞等待

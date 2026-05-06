@@ -16,6 +16,8 @@ import (
 
 	"github.com/lulaide/orca/internal/core"
 	"github.com/lulaide/orca/internal/db"
+	"github.com/lulaide/orca/internal/llm"
+	"github.com/lulaide/orca/internal/tools"
 )
 
 // LarkConfig 飞书通知配置，存 settings 表 key="notification_lark"。
@@ -39,11 +41,22 @@ type Manager struct {
 
 	// onApprove 飞书审批回调，由 main.go 注入（启动 RunExecutionPipeline）。
 	onApprove func(inv *core.Investigation)
+	// engine LLM 引擎，用于飞书 AI 对话。
+	engine *llm.Engine
 }
 
 // SetOnApprove 注册飞书审批确认回调。
 func (m *Manager) SetOnApprove(fn func(inv *core.Investigation)) {
 	m.onApprove = fn
+}
+
+// SetEngine 注入 LLM 引擎，启用飞书 AI 对话。
+// 同时更新已有 BotHandler 的 engine。
+func (m *Manager) SetEngine(engine *llm.Engine) {
+	m.engine = engine
+	if m.bot != nil {
+		m.bot.engine = engine
+	}
 }
 
 // NewManager 创建通知管理器并从 DB 加载配置。
@@ -61,7 +74,16 @@ func (m *Manager) Reload() {
 	if found, _ := db.LoadSetting(m.db, "notification_lark", &cfg); found && cfg.Enabled {
 		m.cfg = cfg
 		m.lark = NewLarkNotifier(cfg.AppID, cfg.AppSecret, cfg.ChatID)
-		m.bot = NewBotHandler(m.db, m.lark)
+		m.bot = NewBotHandler(m.db, m.lark, m.engine)
+		// 注册飞书审批卡片发送器（供 approval.go 在飞书对话中使用）
+		larkRef := m.lark
+		tools.LarkApprovalSender = func(chatID, actionID, toolName, description, risk string) {
+			if larkRef != nil {
+				if err := larkRef.SendToolApprovalCard(chatID, actionID, toolName, description, risk); err != nil {
+					log.Printf("Notify: send tool approval card failed: %v", err)
+				}
+			}
+		}
 		log.Printf("Notify: lark enabled (chat_id=%s)", cfg.ChatID)
 		m.StartBot()
 	} else {
@@ -296,13 +318,21 @@ func (m *Manager) handleCardAction(event *callback.CardActionTriggerEvent) (*cal
 	value := action.Value
 
 	actionType, _ := value["action"].(string)
-	invID, _ := value["investigation_id"].(string)
-
-	if actionType == "" || invID == "" {
+	if actionType == "" {
 		return nil, nil
 	}
 
-	log.Printf("Bot: card action received: %s for investigation %s", actionType, invID)
+	log.Printf("Bot: card action received: %s", actionType)
+
+	// 工具执行审批（飞书对话中的写操作）
+	if actionType == "approve_tool" || actionType == "reject_tool" {
+		return m.handleToolApproval(actionType, value)
+	}
+
+	invID, _ := value["investigation_id"].(string)
+	if invID == "" {
+		return nil, nil
+	}
 
 	inv, err := core.GetInvestigation(m.db, invID)
 	if err != nil {
@@ -377,6 +407,48 @@ func (m *Manager) handleCardAction(event *callback.CardActionTriggerEvent) (*cal
 
 		return &callback.CardActionTriggerResponse{
 			Toast: &callback.Toast{Type: "info", Content: "已拒绝，将重新生成方案"},
+			Card:  &callback.Card{Type: "raw", Data: resultCard},
+		}, nil
+	}
+
+	return nil, nil
+}
+
+// handleToolApproval 处理飞书对话中工具执行的确认/拒绝。
+func (m *Manager) handleToolApproval(actionType string, value map[string]interface{}) (*callback.CardActionTriggerResponse, error) {
+	actionID, _ := value["action_id"].(string)
+	if actionID == "" {
+		return nil, nil
+	}
+
+	if tools.ApprovalMgr == nil {
+		return &callback.CardActionTriggerResponse{
+			Toast: &callback.Toast{Type: "error", Content: "审批管理器未初始化"},
+		}, nil
+	}
+
+	switch actionType {
+	case "approve_tool":
+		if err := tools.ApprovalMgr.Approve(actionID, "lark_user"); err != nil {
+			return &callback.CardActionTriggerResponse{
+				Toast: &callback.Toast{Type: "error", Content: "操作失败: " + err.Error()},
+			}, nil
+		}
+		resultCard := buildResultCard("✅ 操作已确认", "操作已批准执行", "green", "")
+		return &callback.CardActionTriggerResponse{
+			Toast: &callback.Toast{Type: "success", Content: "已确认执行"},
+			Card:  &callback.Card{Type: "raw", Data: resultCard},
+		}, nil
+
+	case "reject_tool":
+		if err := tools.ApprovalMgr.Reject(actionID, "lark_user"); err != nil {
+			return &callback.CardActionTriggerResponse{
+				Toast: &callback.Toast{Type: "error", Content: "操作失败: " + err.Error()},
+			}, nil
+		}
+		resultCard := buildResultCard("❌ 操作已拒绝", "操作已被拒绝", "red", "")
+		return &callback.CardActionTriggerResponse{
+			Toast: &callback.Toast{Type: "info", Content: "已拒绝"},
 			Card:  &callback.Card{Type: "raw", Data: resultCard},
 		}, nil
 	}

@@ -147,7 +147,8 @@ func main() {
 	// 11. Notification Manager
 	notifyMgr := notify.NewManager(gormDB)
 	tools.NotifyMgr = notifyMgr
-	// 飞书审批确认后启动执行流水线
+	// 飞书 AI 对话 + 审批确认
+	notifyMgr.SetEngine(engine)
 	notifyMgr.SetOnApprove(func(inv *core.Investigation) {
 		go agents.RunExecutionPipeline(gormDB, engine, inv)
 	})

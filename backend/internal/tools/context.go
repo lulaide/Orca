@@ -17,6 +17,7 @@ const (
 	EventIDKey
 	SSEEmitKey      // Chat 模式注入 SSE emit 函数
 	PreApprovedKey  // Executor 注入，绕过写工具审批
+	LarkChatIDKey   // 飞书对话注入，审批走卡片而非 SSE
 )
 
 // ConversationIDFromContext 从 ctx 读取对话 ID；未注入时返回空串。

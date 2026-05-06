@@ -212,6 +212,58 @@ func (l *LarkNotifier) sendRawCard(chatID string, card map[string]any) error {
 	return nil
 }
 
+// SendToolApprovalCard 发送工具执行审批卡片（用于飞书对话中的写操作）。
+func (l *LarkNotifier) SendToolApprovalCard(chatID, actionID, toolName, description, risk string) error {
+	riskLabel := "低"
+	color := "orange"
+	if risk == "medium" || risk == "high" {
+		riskLabel = "中"
+		color = "red"
+	}
+
+	content := fmt.Sprintf("**%s**\n\n工具：**%s**\n风险：%s", description, toolName, riskLabel)
+
+	card := map[string]any{
+		"config": map[string]any{"wide_screen_mode": true},
+		"header": map[string]any{
+			"title":    map[string]any{"tag": "plain_text", "content": "🔐 操作待确认"},
+			"template": color,
+		},
+		"elements": []any{
+			map[string]any{"tag": "markdown", "content": content},
+			map[string]any{
+				"tag": "action",
+				"actions": []any{
+					map[string]any{
+						"tag":  "button",
+						"text": map[string]any{"tag": "plain_text", "content": "✅ 确认执行"},
+						"type": "primary",
+						"value": map[string]any{
+							"action":    "approve_tool",
+							"action_id": actionID,
+						},
+						"confirm": map[string]any{
+							"title": map[string]any{"tag": "plain_text", "content": "确认执行"},
+							"text":  map[string]any{"tag": "plain_text", "content": description},
+						},
+					},
+					map[string]any{
+						"tag":  "button",
+						"text": map[string]any{"tag": "plain_text", "content": "❌ 拒绝"},
+						"type": "danger",
+						"value": map[string]any{
+							"action":    "reject_tool",
+							"action_id": actionID,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return l.sendRawCard(chatID, card)
+}
+
 // buildResultCard 构建操作完成后的替换卡片（无按钮），防止重复点击。
 func buildResultCard(title, content, color, status string) map[string]any {
 	return map[string]any{
@@ -229,23 +281,67 @@ func buildResultCard(title, content, color, status string) map[string]any {
 }
 
 // larkifyMarkdown 把飞书不支持的 markdown 语法转换为支持的格式。
-// 飞书卡片 markdown 不支持：### 标题、有序列表（1. 2. 3.）、代码块（```）、链接文字。
+// 飞书卡片 markdown 不支持：### 标题、有序列表（1. 2. 3.）、代码块（```）、表格、链接文字。
 func larkifyMarkdown(s string) string {
 	lines := strings.Split(s, "\n")
 	var result []string
 	inCodeBlock := false
+	inTable := false
+	var tableHeaders []string
+	var tableRows [][]string
+
+	flushTable := func() {
+		if len(tableHeaders) > 0 && len(tableRows) > 0 {
+			for _, row := range tableRows {
+				var parts []string
+				for i, cell := range row {
+					if i < len(tableHeaders) {
+						parts = append(parts, fmt.Sprintf("**%s**: %s", tableHeaders[i], cell))
+					} else {
+						parts = append(parts, cell)
+					}
+				}
+				result = append(result, "• "+strings.Join(parts, " | "))
+			}
+		}
+		tableHeaders = nil
+		tableRows = nil
+		inTable = false
+	}
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
-		// 代码块：去掉 ``` 标记，保留内容
+		// 代码块
 		if strings.HasPrefix(trimmed, "```") {
+			if inTable {
+				flushTable()
+			}
 			inCodeBlock = !inCodeBlock
 			continue
 		}
 		if inCodeBlock {
 			result = append(result, line)
 			continue
+		}
+
+		// 表格检测
+		if strings.HasPrefix(trimmed, "|") && strings.HasSuffix(trimmed, "|") {
+			cells := parseTableRow(trimmed)
+			// 分隔行（|---|---|）跳过
+			if isTableSeparator(trimmed) {
+				continue
+			}
+			if !inTable {
+				// 第一行是表头
+				inTable = true
+				tableHeaders = cells
+			} else {
+				tableRows = append(tableRows, cells)
+			}
+			continue
+		} else if inTable {
+			flushTable()
 		}
 
 		// ### 标题 → **加粗**
@@ -269,6 +365,9 @@ func larkifyMarkdown(s string) string {
 
 		result = append(result, line)
 	}
+	if inTable {
+		flushTable()
+	}
 
 	// 单反引号 `xxx` → **xxx**
 	joined := strings.Join(result, "\n")
@@ -281,4 +380,24 @@ func larkifyMarkdown(s string) string {
 		}
 	}
 	return sb.String()
+}
+
+func parseTableRow(line string) []string {
+	line = strings.TrimPrefix(line, "|")
+	line = strings.TrimSuffix(line, "|")
+	parts := strings.Split(line, "|")
+	cells := make([]string, 0, len(parts))
+	for _, p := range parts {
+		cells = append(cells, strings.TrimSpace(p))
+	}
+	return cells
+}
+
+func isTableSeparator(line string) bool {
+	for _, c := range line {
+		if c != '|' && c != '-' && c != ':' && c != ' ' {
+			return false
+		}
+	}
+	return strings.Contains(line, "---")
 }

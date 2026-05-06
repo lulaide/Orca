@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.0](https://github.com/lulaide/Orca/compare/v0.8.0...v0.9.0) (2026-05-06)
+
+
+### Features
+
+* **bot:** 飞书 IM Bot AI 对话 ([f130599](https://github.com/lulaide/Orca/commit/f1305992b25a2ad57e2ab7c31d89010d85b8380a))
+* **investigation:** 手动触发诊断 + 重新诊断按钮 ([49dd2aa](https://github.com/lulaide/Orca/commit/49dd2aaeea8518d4c4f1adb6f8992657498283b3))
+* **notify:** 飞书交互卡片审批 + 卡片回调处理 ([8d2f9d5](https://github.com/lulaide/Orca/commit/8d2f9d52555e52ecb14a098aab4c3bd7e12eb249))
+
+
+### Bug Fixes
+
+* **patrol:** 巡检创建调查后提交 report 并设 explored 触发流水线 ([bec4f24](https://github.com/lulaide/Orca/commit/bec4f242c3264ed05dc598a6aa13198a71b243b0))
+
 ## [0.8.0](https://github.com/lulaide/Orca/compare/v0.7.0...v0.8.0) (2026-05-04)
 
 
